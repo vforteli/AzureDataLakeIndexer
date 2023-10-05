@@ -92,13 +92,8 @@ public class DataLakeIndexer
 
         var listPathsTask = Task.Run(async () =>
         {
-            var i = 0;
             await foreach (var path in paths)
             {
-                if (i++ == 101050)  // todo remove this...
-                {
-                    break;
-                }
                 pathsBuffer.Add(path);
             }
 
