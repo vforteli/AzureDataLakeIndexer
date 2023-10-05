@@ -5,6 +5,10 @@ VisualStudioVersion = 25.0.1706.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SearchIndexerTest", "SearchIndexerTest\SearchIndexerTest.csproj", "{68E1CA82-930B-461E-8323-052CAFF364E1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DatalakePathIndexerFunc", "DatalakePathIndexerFunc\DatalakePathIndexerFunc.csproj", "{7E374364-6CC7-48B6-B591-35FACBB67327}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AzureSearchIndexer", "AzureSearchIndexer\AzureSearchIndexer.csproj", "{8450BA42-6306-4D8F-8DB0-7ED20711DE0D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +19,14 @@ Global
 		{68E1CA82-930B-461E-8323-052CAFF364E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{68E1CA82-930B-461E-8323-052CAFF364E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{68E1CA82-930B-461E-8323-052CAFF364E1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7E374364-6CC7-48B6-B591-35FACBB67327}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7E374364-6CC7-48B6-B591-35FACBB67327}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7E374364-6CC7-48B6-B591-35FACBB67327}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7E374364-6CC7-48B6-B591-35FACBB67327}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8450BA42-6306-4D8F-8DB0-7ED20711DE0D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8450BA42-6306-4D8F-8DB0-7ED20711DE0D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8450BA42-6306-4D8F-8DB0-7ED20711DE0D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8450BA42-6306-4D8F-8DB0-7ED20711DE0D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

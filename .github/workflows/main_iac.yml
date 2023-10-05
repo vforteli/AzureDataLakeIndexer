@@ -1,0 +1,25 @@
+name: IaC
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches: 
+      - dev
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+     
+jobs:  
+  deploy-iac:    
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/deploy_iac.yml
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}      
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      RESOURCE_GROUP_NAME: ${{ secrets.RESOURCE_GROUP_NAME }}
+         

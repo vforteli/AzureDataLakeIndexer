@@ -1,0 +1,56 @@
+name: Indexer Func
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:   
+    branches: 
+      - dev
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+     
+jobs:
+  # this is not ideal... but copied from current build script
+  build:
+    runs-on: ubuntu-latest    
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v2
+      with:
+        dotnet-version: 7.0.x
+
+    - name: Build
+      working-directory: DatalakePathIndexerFunc/
+      run: dotnet publish -c Release
+
+    - name: Create zip
+      working-directory: DatalakePathIndexerFunc/bin/Release/net7.0/publish
+      run: zip -r indexerfunc.zip ./
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: indexerfunc
+        path: DatalakePathIndexerFunc/bin/Release/net7.0/publish/indexerfunc.zip
+
+
+  deploy:    
+    if: github.ref == 'refs/heads/main'
+    needs: 
+      - build
+    uses: ./.github/workflows/deploy_indexer_func.yml
+    with:
+      APPSERVICE_NAME: datalake-indexer-func-dev
+      ZIP_FILE_NAME: indexerfunc.zip
+      ARTIFACT_NAME: indexerfunc
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}      
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      RESOURCE_GROUP_NAME: ${{ secrets.RESOURCE_GROUP_NAME }}

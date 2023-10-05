@@ -1,15 +1,32 @@
-﻿using Azure;
-using Azure.Search.Documents;
-using Azure.Search.Documents.Indexes;
-using Azure.Storage.Files.DataLake;
-using DataLakeFileSystemClientExtension;
-using System.Diagnostics;
-using System.Net;
-using System.Text;
 using System.Text.Json;
 using System.Web;
+using Azure;
+using Azure.Search.Documents;
+using Azure.Storage.Files.DataLake;
+using Azure.Storage.Files.DataLake.Models;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using SearchIndexerTest;
+
+const string fileSystemName = "stuff-large";
+const string indexName = "someindex-large";
+const string pathCreatedIndexName = "path-created-index";
+const string pathDeletedIndexName = "path-deleted-index";
+
+
+var config = new ConfigurationBuilder().AddJsonFile($"appsettings.json", true, true).Build();
+
+var searchServiceUri = new Uri(config.GetValue<string>("searchServiceUri"));
+var searchServiceCredendial = new AzureKeyCredential(config.GetValue<string>("searchServiceApiKey"));
+var datalakeConnectionString = new Uri(config.GetValue<string>("storageConnectionString"));
+
+
+var loggerFactory = LoggerFactory.Create(o => o.AddSimpleConsole(c => c.SingleLine = true));
+
 
 using var cancellationTokenSource = new CancellationTokenSource();
+
+
 
 Console.CancelKeyPress += (s, e) =>
 {
@@ -26,78 +43,55 @@ Console.CancelKeyPress += (s, e) =>
     }
 };
 
-var stopwatch = Stopwatch.StartNew();
 
-var connectionString = "derp";
-var sourceFileSystemClient = new DataLakeServiceClient(new Uri(connectionString)).GetFileSystemClient("stuff");
-
-var indexName = "someindex";
-var searchServiceUrl = "https://foo.search.windows.net";
-var searchServiceApiKey = "foo";
+var sourceFileSystemClient = new DataLakeServiceClient(datalakeConnectionString).GetFileSystemClient(fileSystemName);
 
 
-var searchIndexClient = new SearchIndexClient(new Uri(searchServiceUrl), new AzureKeyCredential(searchServiceApiKey));
-
-//await searchIndexClient.CreateIndexAsync(new Azure.Search.Documents.Indexes.Models.SearchIndex(indexName, new FieldBuilder().Build(typeof(TestIndexModel))));
+await sourceFileSystemClient.CreateIfNotExistsAsync();
 
 
-var searchClient = new SearchClient(new Uri(searchServiceUrl), indexName, new AzureKeyCredential(searchServiceApiKey));
+
+//await DataLakeIndexer.CreateIndexIfNotExistsAsync<TestIndexModel>(searchServiceUri, searchServiceCredendial, indexName);
+await DataLakeIndexer.CreateOrUpdateIndexAsync<SomeOtherIndexModel>(searchServiceUri, searchServiceCredendial, indexName);
+await DataLakeIndexer.CreateIndexIfNotExistsAsync<PathIndexModel>(searchServiceUri, searchServiceCredendial, pathCreatedIndexName);
+await DataLakeIndexer.CreateIndexIfNotExistsAsync<PathIndexModel>(searchServiceUri, searchServiceCredendial, pathDeletedIndexName);
 
 
-var batch = new List<TestIndexModel>(1000);
 
-var processedCount = 0;
-await foreach (var path in sourceFileSystemClient.ListPathsParallelAsync("/", cancellationToken: cancellationTokenSource.Token))
+
+//await DataLakeWriter.WriteStuff(sourceFileSystemClient);
+
+
+var pathIndexClient = new PathIndexClient(new SearchClient(searchServiceUri, pathCreatedIndexName, searchServiceCredendial), loggerFactory.CreateLogger<PathIndexClient>());
+var indexer = new DataLakeIndexer(new SearchClient(searchServiceUri, indexName, searchServiceCredendial), loggerFactory.CreateLogger<DataLakeIndexer>());
+
+
+
+var documentCountResult = await new SearchClient(searchServiceUri, indexName, searchServiceCredendial).GetDocumentCountAsync();
+Console.WriteLine(documentCountResult.Value);
+
+
+Console.WriteLine("Running indexer...");
+var options = new ListPathsOptions { FromLastModified = new DateTimeOffset(2023, 9, 23, 5, 0, 0, TimeSpan.Zero) };
+
+Func<PathIndexModel, FileDownloadInfo, Task<SomeOtherIndexModel?>> somefunc = async (path, file) =>
 {
-    if ((!path.IsDirectory ?? false) && path.Name.EndsWith(".json"))
-    {
-        var file = await sourceFileSystemClient.GetFileClient(path.Name).ReadAsync();
-        var document = await JsonSerializer.DeserializeAsync<TestIndexModel>(file.Value.Content);
+    var document = await JsonSerializer.DeserializeAsync<TestIndexModel>(file.Content).ConfigureAwait(false);
 
-        if (document != null)
+    return document != null
+        ? new SomeOtherIndexModel
         {
-            batch.Add(document with { pathbase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(path.Name)) });
+            booleanvalue = document.booleanvalue,
+            numbervalue = document.numbervalue,
+            pathbase64 = path.key,
+            stringvalue = document.stringvalue,
+            eTag = file.Properties.ETag.ToString(),
+            pathUrlEncoded = HttpUtility.UrlEncode(path.path),
+            lastModified = path.lastModified,
         }
+        : null;
+};
 
+var indexerResult = await indexer.RunDocumentIndexerOnPathsAsync(sourceFileSystemClient, pathIndexClient.ListPathsAsync(options), somefunc, cancellationTokenSource.Token);
 
-        // this could also handle the paths in parallel
-        var currentCount = Interlocked.Increment(ref processedCount);
-        if (currentCount % 10 == 0)
-        {
-            await searchClient.MergeOrUploadDocumentsAsync(batch);
-            batch.Clear();
-            Console.WriteLine($"Processed {currentCount} files and directories... {processedCount / (stopwatch.ElapsedMilliseconds / 1000f)} fps");
-        }
-    }
-}
-
-if (batch.Any())
-{
-    await searchClient.MergeOrUploadDocumentsAsync(batch);
-}
-
-Console.WriteLine($"Done, took {stopwatch.Elapsed}");
-Console.WriteLine($"Found {processedCount} files and directories");
-
-
-public record TestIndexModel
-{
-    [SimpleField(IsKey = true)]
-    public string pathbase64 { get; init; } = "";
-
-    [SearchableField]
-    public string stringvalue { get; init; } = "";
-
-    [SimpleField(IsFacetable = true, IsFilterable = true)]
-    public int numbervalue { get; init; }
-
-    [SimpleField(IsFacetable = true, IsFilterable = true)]
-    public bool booleanvalue { get; init; }
-}
-
-
-/*{
-"stringvalue": "this contains some text... yaaaay thanks for the fish etc",
-"numbervalue": 42,
-"booleanvalue": true
-}*/
+Console.WriteLine(JsonSerializer.Serialize(indexerResult));

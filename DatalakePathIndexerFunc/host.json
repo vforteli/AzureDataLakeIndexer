@@ -1,0 +1,21 @@
+﻿{
+  "version": "2.0",
+  "logging": {
+    "applicationInsights": {
+      "samplingSettings": {
+        "isEnabled": true,
+        "excludedTypes": "Request"
+      }
+    }
+  },
+  "functionTimeout": "00:10:00",
+  "extensions": {
+    "serviceBus": {          
+      "maxConcurrentCalls": 2,      
+      "maxMessageBatchSize": 2000,
+      "minMessageBatchSize": 500,
+      "maxBatchWaitTime": "00:00:10",
+      "prefetchCount": 1000       
+    }
+  }
+}
