@@ -135,7 +135,6 @@ public class DataLakeIndexer
                         {
                             try
                             {
-                                // Consider allowing a Func of some sort for doing arbitrary mapping here, such as file metadata to index properties etc
                                 var file = await sourceFileSystemClient.GetFileClient(path.path).ReadAsync(cancellationToken).ConfigureAwait(false);
 
                                 var document = await func.Invoke(path, file.Value);
