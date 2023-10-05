@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System.Collections.Immutable;
+using System.Diagnostics;
 using Azure.Search.Documents;
 using AzureSearchIndexer;
 using Microsoft.Extensions.Logging;
@@ -17,6 +18,30 @@ public class PathIndexClient
     {
         _pathIndexSearchClient = pathIndexSearchClient;
         _logger = logger;
+    }
+
+
+    /// <summary>
+    /// Upsert paths to path index
+    /// </summary>
+    public async Task UpsertPathsAsync(ImmutableList<PathIndexModel> paths)
+    {
+        try
+        {
+            var response = await _pathIndexSearchClient.MergeOrUploadDocumentsAsync(paths);
+
+            _logger.LogInformation(
+                "Status: {status}, created: {created}, modified: {modified}, failed: {failed}",
+                response.GetRawResponse().Status,
+                response.Value.Results.Count(o => o.Status == 201),
+                response.Value.Results.Count(o => o.Status == 200),
+                response.Value.Results.Count(o => o.Status >= 400));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Something went wrong uploading to path index :/");
+            throw;
+        }
     }
 
 

@@ -13,8 +13,6 @@ var host = new HostBuilder()
         var azureSearchServiceUri = Environment.GetEnvironmentVariable("AzureSearchServiceUri");
         ArgumentNullException.ThrowIfNull(azureSearchServiceUri);
 
-        services.AddSingleton(new SearchClient(new Uri(azureSearchServiceUri), "path-created-index", new DefaultAzureCredential()));
-
         var datalakeConnectionString = Environment.GetEnvironmentVariable("DatalakeConnectionString");
         ArgumentNullException.ThrowIfNull(datalakeConnectionString);
 

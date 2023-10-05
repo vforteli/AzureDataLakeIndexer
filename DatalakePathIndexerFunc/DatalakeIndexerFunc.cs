@@ -3,7 +3,6 @@ using System.Text;
 using System.Text.Json;
 using System.Web;
 using Azure.Messaging.ServiceBus;
-using Azure.Search.Documents;
 using Azure.Storage.Files.DataLake;
 using Azure.Storage.Files.DataLake.Models;
 using AzureSearchIndexer;
@@ -16,15 +15,13 @@ namespace DatalakePathIndexerFunc;
 public class DatalakePathIndexer
 {
     private readonly ILogger _logger;
-    private readonly SearchClient _searchClient;
     private readonly PathIndexClient _pathIndexClient;
     private readonly DataLakeIndexer _dataLakeIndexerDerp;
     private readonly DataLakeServiceClient _dataLakeServiceClient;
 
-    public DatalakePathIndexer(ILoggerFactory loggerFactory, SearchClient searchClient, PathIndexClient pathIndexClient, DataLakeIndexer dataLakeIndexerDerp, DataLakeServiceClient dataLakeServiceClient)
+    public DatalakePathIndexer(ILoggerFactory loggerFactory, PathIndexClient pathIndexClient, DataLakeIndexer dataLakeIndexerDerp, DataLakeServiceClient dataLakeServiceClient)
     {
         _logger = loggerFactory.CreateLogger<DatalakePathIndexer>();
-        _searchClient = searchClient;
         _pathIndexClient = pathIndexClient;
         _dataLakeIndexerDerp = dataLakeIndexerDerp;
         _dataLakeServiceClient = dataLakeServiceClient;
@@ -36,10 +33,9 @@ public class DatalakePathIndexer
     {
         _logger.LogInformation("Received {count} blob created events in batch", messages.Length);
 
-        var documents = messages.Select(o =>
+        await _pathIndexClient.UpsertPathsAsync(messages.Select(o =>
         {
             var body = o.Body.ToObjectFromJson<BlobEvent>();
-
             var (fileSystem, path) = Utils.UrlToFilesystemAndPath(body.Data.Url);
 
             return new PathIndexModel
@@ -49,18 +45,7 @@ public class DatalakePathIndexer
                 lastModified = body.EventTime,
                 path = path,
             };
-        }).ToImmutableList();
-
-        try
-        {
-            await _searchClient.MergeOrUploadDocumentsAsync(documents);
-            _logger.LogInformation("Indexed {count} paths", messages.Length);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "something went wrong uploading to index :/");
-            throw;
-        }
+        }).ToImmutableList());
     }
 
 
@@ -107,27 +92,9 @@ public class DatalakePathIndexer
     {
         _logger.LogInformation("Running indexer...");
 
-        static async Task<SomeOtherIndexModel?> mapperFunc(PathIndexModel path, FileDownloadInfo file)
-        {
-            var document = await JsonSerializer.DeserializeAsync<TestIndexModel>(file.Content).ConfigureAwait(false);
-
-            return document != null
-                ? new SomeOtherIndexModel
-                {
-                    booleanvalue = document.booleanvalue,
-                    numbervalue = document.numbervalue,
-                    pathbase64 = path.key,
-                    stringvalue = document.stringvalue,
-                    eTag = file.Properties.ETag.ToString(),
-                    pathUrlEncoded = HttpUtility.UrlEncode(path.path),
-                    lastModified = path.lastModified,
-                }
-                : null;
-        }
-
-        var options = new ListPathsOptions { FromLastModified = new DateTimeOffset(2023, 9, 28, 5, 0, 0, TimeSpan.Zero) };  // so this should actually be the time of the last successful run
-
-        var indexerResult = await _dataLakeIndexerDerp.RunDocumentIndexerOnPathsAsync(_dataLakeServiceClient.GetFileSystemClient("stuff-large"), _pathIndexClient.ListPathsAsync(options), mapperFunc, default);
+        // so this should actually be the time of the last successful run        
+        var paths = _pathIndexClient.ListPathsAsync(new ListPathsOptions { FromLastModified = new DateTimeOffset(2023, 9, 28, 5, 0, 0, TimeSpan.Zero) });
+        var indexerResult = await _dataLakeIndexerDerp.RunDocumentIndexerOnPathsAsync(_dataLakeServiceClient.GetFileSystemClient("stuff-large"), paths, MapperFunc, context.CancellationToken);
 
         _logger.LogInformation(
             "Indexer done, documents read: {created}, failed: {failed}",
@@ -139,5 +106,24 @@ public class DatalakePathIndexer
             indexerResult.DocumentUploadCreatedCount,
             indexerResult.DocumentUploadModifiedCount,
             indexerResult.DocumentUploadFailedCount);
+    }
+
+
+    internal static async Task<SomeOtherIndexModel?> MapperFunc(PathIndexModel path, FileDownloadInfo file)
+    {
+        var document = await JsonSerializer.DeserializeAsync<TestIndexModel>(file.Content).ConfigureAwait(false);
+
+        return document != null
+            ? new SomeOtherIndexModel
+            {
+                booleanvalue = document.booleanvalue,
+                numbervalue = document.numbervalue,
+                pathbase64 = path.key,
+                stringvalue = document.stringvalue,
+                eTag = file.Properties.ETag.ToString(),
+                pathUrlEncoded = HttpUtility.UrlEncode(path.path),
+                lastModified = path.lastModified,
+            }
+            : null;
     }
 }
