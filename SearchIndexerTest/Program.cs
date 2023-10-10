@@ -16,9 +16,9 @@ const string pathDeletedIndexName = "path-deleted-index";
 
 var config = new ConfigurationBuilder().AddJsonFile($"appsettings.json", true, true).Build();
 
-var searchServiceUri = new Uri(config.GetValue<string>("searchServiceUri"));
-var searchServiceCredendial = new AzureKeyCredential(config.GetValue<string>("searchServiceApiKey"));
-var datalakeConnectionString = new Uri(config.GetValue<string>("storageConnectionString"));
+var searchServiceUri = new Uri(config.GetValue<string>("searchServiceUri") ?? throw new ArgumentNullException("searchServiceUri"));
+var searchServiceCredendial = new AzureKeyCredential(config.GetValue<string>("searchServiceApiKey") ?? throw new ArgumentNullException("searchServiceApiKey"));
+var datalakeConnectionString = new Uri(config.GetValue<string>("storageConnectionString") ?? throw new ArgumentNullException("storageConnectionString"));
 
 
 var loggerFactory = LoggerFactory.Create(o => o.AddSimpleConsole(c => c.SingleLine = true));
