@@ -27,24 +27,6 @@ public class DataLakeIndexer
 
 
     /// <summary>
-    /// Create an index if it doesnt exist...
-    /// </summary>
-    public static async Task CreateIndexIfNotExistsAsync<T>(Uri searchServiceUri, AzureKeyCredential credential, string indexName)
-    {
-        var searchIndexClient = new SearchIndexClient(searchServiceUri, credential);
-
-        try
-        {
-            var result = await searchIndexClient.GetIndexAsync(indexName);
-        }
-        catch (Exception)
-        {
-            Console.WriteLine($"Index doesnt exist, creating index {indexName}");
-            await searchIndexClient.CreateIndexAsync(new SearchIndex(indexName, new FieldBuilder().Build(typeof(T))));
-        }
-    }
-
-    /// <summary>
     /// Create or update an index
     /// </summary>
     public static async Task CreateOrUpdateIndexAsync<T>(Uri searchServiceUri, AzureKeyCredential credential, string indexName)
@@ -66,7 +48,7 @@ public class DataLakeIndexer
     /// <summary>
     /// Run indexer with an index model derived from BaseIndexModel and no custom mapping
     /// </summary>
-    public async Task<IndexerRunMetrics> RunDocumentIndexerOnPathsAsync<TIndex>(DataLakeFileSystemClient sourceFileSystemClient, IAsyncEnumerable<PathIndexModel> paths, CancellationToken cancellationToken)
+    public async Task<IndexerRunMetrics> RunDocumentIndexerOnPathsAsync<TIndex>(DataLakeServiceClient dataLakeServiceClient, IAsyncEnumerable<PathIndexModel> paths, CancellationToken cancellationToken)
     where TIndex : BaseIndexModel
     {
         async Task<BaseIndexModel?> somefunc(PathIndexModel path, FileDownloadInfo file)
@@ -78,15 +60,14 @@ public class DataLakeIndexer
                 : null;
         }
 
-        return await RunDocumentIndexerOnPathsAsync(sourceFileSystemClient, paths, somefunc, cancellationToken);
+        return await RunDocumentIndexerOnPathsAsync(dataLakeServiceClient, paths, somefunc, cancellationToken);
     }
-
 
 
     /// <summary>
     /// Run document indexer with a function for mapping 
     /// </summary>
-    public async Task<IndexerRunMetrics> RunDocumentIndexerOnPathsAsync<TIndex>(DataLakeFileSystemClient sourceFileSystemClient, IAsyncEnumerable<PathIndexModel> paths, Func<PathIndexModel, FileDownloadInfo, Task<TIndex?>> func, CancellationToken cancellationToken)
+    public async Task<IndexerRunMetrics> RunDocumentIndexerOnPathsAsync<TIndex>(DataLakeServiceClient dataLakeServiceClient, IAsyncEnumerable<PathIndexModel> paths, Func<PathIndexModel, FileDownloadInfo, Task<TIndex?>> func, CancellationToken cancellationToken)
     {
         var pathsBuffer = new BlockingCollection<PathIndexModel>();
 
@@ -135,7 +116,7 @@ public class DataLakeIndexer
                         {
                             try
                             {
-                                var file = await sourceFileSystemClient.GetFileClient(path.path).ReadAsync(cancellationToken).ConfigureAwait(false);
+                                var file = await dataLakeServiceClient.GetFileSystemClient(path.filesystem).GetFileClient(path.path).ReadAsync(cancellationToken).ConfigureAwait(false);
 
                                 var document = await func.Invoke(path, file.Value);
                                 if (document != null)
@@ -230,5 +211,4 @@ public class DataLakeIndexer
             DocumentUploadModifiedCount = documentUploadModifiedCount,
         };
     }
-
 }

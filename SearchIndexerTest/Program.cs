@@ -8,7 +8,6 @@ using AzureSearchIndexer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
-const string fileSystemName = "stuff-large";
 const string indexName = "someindex-large";
 const string pathCreatedIndexName = "path-created-index";
 const string pathDeletedIndexName = "path-deleted-index";
@@ -44,22 +43,23 @@ Console.CancelKeyPress += (s, e) =>
 };
 
 
-var sourceFileSystemClient = new DataLakeServiceClient(datalakeConnectionString).GetFileSystemClient(fileSystemName);
+var datalakeServiceClient = new DataLakeServiceClient(datalakeConnectionString);
 
-
-await sourceFileSystemClient.CreateIfNotExistsAsync();
+// setup datalake stuff
+//var sourceFileSystemClient = datalakeServiceClient.GetFileSystemClient("stuff-large");
+//await sourceFileSystemClient.CreateIfNotExistsAsync();
+//await DataLakeWriter.WriteStuff(sourceFileSystemClient);
 
 
 
 //await DataLakeIndexer.CreateIndexIfNotExistsAsync<TestIndexModel>(searchServiceUri, searchServiceCredendial, indexName);
 await DataLakeIndexer.CreateOrUpdateIndexAsync<SomeOtherIndexModel>(searchServiceUri, searchServiceCredendial, indexName);
-await DataLakeIndexer.CreateIndexIfNotExistsAsync<PathIndexModel>(searchServiceUri, searchServiceCredendial, pathCreatedIndexName);
-await DataLakeIndexer.CreateIndexIfNotExistsAsync<PathIndexModel>(searchServiceUri, searchServiceCredendial, pathDeletedIndexName);
+await DataLakeIndexer.CreateOrUpdateIndexAsync<PathIndexModel>(searchServiceUri, searchServiceCredendial, pathCreatedIndexName);
+await DataLakeIndexer.CreateOrUpdateIndexAsync<PathIndexModel>(searchServiceUri, searchServiceCredendial, pathDeletedIndexName);
 
 
 
 
-//await DataLakeWriter.WriteStuff(sourceFileSystemClient);
 
 
 var pathIndexClient = new PathIndexClient(new SearchClient(searchServiceUri, pathCreatedIndexName, searchServiceCredendial), loggerFactory.CreateLogger<PathIndexClient>());
@@ -92,6 +92,6 @@ Func<PathIndexModel, FileDownloadInfo, Task<SomeOtherIndexModel?>> somefunc = as
         : null;
 };
 
-var indexerResult = await indexer.RunDocumentIndexerOnPathsAsync(sourceFileSystemClient, pathIndexClient.ListPathsAsync(options), somefunc, cancellationTokenSource.Token);
+var indexerResult = await indexer.RunDocumentIndexerOnPathsAsync(datalakeServiceClient, pathIndexClient.ListPathsAsync(options), somefunc, cancellationTokenSource.Token);
 
 Console.WriteLine(JsonSerializer.Serialize(indexerResult));

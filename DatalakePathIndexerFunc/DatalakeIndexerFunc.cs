@@ -12,14 +12,14 @@ public class DatalakePathIndexer
 {
     private readonly ILogger _logger;
     private readonly PathIndexClient _pathIndexClient;
-    private readonly DataLakeIndexer _dataLakeIndexerDerp;
+    private readonly DataLakeIndexer _dataLakeIndexer;
     private readonly DataLakeServiceClient _dataLakeServiceClient;
 
     public DatalakePathIndexer(ILoggerFactory loggerFactory, PathIndexClient pathIndexClient, DataLakeIndexer dataLakeIndexerDerp, DataLakeServiceClient dataLakeServiceClient)
     {
         _logger = loggerFactory.CreateLogger<DatalakePathIndexer>();
         _pathIndexClient = pathIndexClient;
-        _dataLakeIndexerDerp = dataLakeIndexerDerp;
+        _dataLakeIndexer = dataLakeIndexerDerp;
         _dataLakeServiceClient = dataLakeServiceClient;
     }
 
@@ -95,7 +95,7 @@ public class DatalakePathIndexer
 
         // so this should actually be the time of the last successful run        
         var paths = _pathIndexClient.ListPathsAsync(new ListPathsOptions { FromLastModified = new DateTimeOffset(2023, 9, 28, 5, 0, 0, TimeSpan.Zero) });
-        var indexerResult = await _dataLakeIndexerDerp.RunDocumentIndexerOnPathsAsync(_dataLakeServiceClient.GetFileSystemClient("stuff-large"), paths, IndexMapper.MapSomethingToSomethingElseAsync, token);
+        var indexerResult = await _dataLakeIndexer.RunDocumentIndexerOnPathsAsync(_dataLakeServiceClient, paths, IndexMapper.MapSomethingToSomethingElseAsync, token);
 
         _logger.LogInformation(
             "Indexer done, documents read: {created}, failed: {failed}",
