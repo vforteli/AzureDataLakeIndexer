@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using Azure.Storage.Files.DataLake;
+using AzureSearchIndexer;
 
 namespace SearchIndexerTest;
 

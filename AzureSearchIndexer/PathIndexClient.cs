@@ -1,10 +1,9 @@
 ﻿using System.Collections.Immutable;
 using System.Diagnostics;
 using Azure.Search.Documents;
-using AzureSearchIndexer;
 using Microsoft.Extensions.Logging;
 
-namespace SearchIndexerTest;
+namespace AzureSearchIndexer;
 
 public class PathIndexClient
 {

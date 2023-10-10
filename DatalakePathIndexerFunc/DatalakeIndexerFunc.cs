@@ -1,14 +1,10 @@
 ﻿using System.Collections.Immutable;
 using System.Text;
-using System.Text.Json;
-using System.Web;
 using Azure.Messaging.ServiceBus;
 using Azure.Storage.Files.DataLake;
-using Azure.Storage.Files.DataLake.Models;
 using AzureSearchIndexer;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
-using SearchIndexerTest;
 
 namespace DatalakePathIndexerFunc;
 
@@ -88,13 +84,18 @@ public class DatalakePathIndexer
 
 
     [Function("RunIndexer")]
-    public async Task RunIndexer([TimerTrigger("0 0 0 * * *")] TimerInfo timerInfo, FunctionContext context)
+    public async Task RunIndexer([TimerTrigger("0 0 0 * * *")] TimerInfo timerInfo, FunctionContext context) => await RunIndexerAsync(context.CancellationToken);
+
+
+
+
+    public async Task RunIndexerAsync(CancellationToken token)
     {
         _logger.LogInformation("Running indexer...");
 
         // so this should actually be the time of the last successful run        
         var paths = _pathIndexClient.ListPathsAsync(new ListPathsOptions { FromLastModified = new DateTimeOffset(2023, 9, 28, 5, 0, 0, TimeSpan.Zero) });
-        var indexerResult = await _dataLakeIndexerDerp.RunDocumentIndexerOnPathsAsync(_dataLakeServiceClient.GetFileSystemClient("stuff-large"), paths, MapperFunc, context.CancellationToken);
+        var indexerResult = await _dataLakeIndexerDerp.RunDocumentIndexerOnPathsAsync(_dataLakeServiceClient.GetFileSystemClient("stuff-large"), paths, IndexMapper.MapSomethingToSomethingElseAsync, token);
 
         _logger.LogInformation(
             "Indexer done, documents read: {created}, failed: {failed}",
@@ -107,23 +108,14 @@ public class DatalakePathIndexer
             indexerResult.DocumentUploadModifiedCount,
             indexerResult.DocumentUploadFailedCount);
     }
+}
 
 
-    internal static async Task<SomeOtherIndexModel?> MapperFunc(PathIndexModel path, FileDownloadInfo file)
-    {
-        var document = await JsonSerializer.DeserializeAsync<TestIndexModel>(file.Content).ConfigureAwait(false);
-
-        return document != null
-            ? new SomeOtherIndexModel
-            {
-                booleanvalue = document.booleanvalue,
-                numbervalue = document.numbervalue,
-                pathbase64 = path.key,
-                stringvalue = document.stringvalue,
-                eTag = file.Properties.ETag.ToString(),
-                pathUrlEncoded = HttpUtility.UrlEncode(path.path),
-                lastModified = path.lastModified,
-            }
-            : null;
-    }
+public record IndexerFoo
+{
+    // filesystem
+    // path
+    // targetindex
+    // indexmodel
+    // mapperfunc
 }

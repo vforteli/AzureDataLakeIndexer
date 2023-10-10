@@ -4,9 +4,9 @@ using Azure;
 using Azure.Search.Documents;
 using Azure.Storage.Files.DataLake;
 using Azure.Storage.Files.DataLake.Models;
+using AzureSearchIndexer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using SearchIndexerTest;
 
 const string fileSystemName = "stuff-large";
 const string indexName = "someindex-large";

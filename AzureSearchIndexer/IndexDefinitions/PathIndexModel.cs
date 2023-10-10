@@ -1,6 +1,6 @@
 ﻿using Azure.Search.Documents.Indexes;
 
-namespace SearchIndexerTest;
+namespace AzureSearchIndexer;
 
 /// <summary>
 /// PathIndexModel is used to store blobcreated and blobdeleted event data

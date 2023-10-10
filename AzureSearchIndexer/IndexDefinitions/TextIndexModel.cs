@@ -1,6 +1,6 @@
 ﻿using Azure.Search.Documents.Indexes;
 
-namespace SearchIndexerTest;
+namespace AzureSearchIndexer;
 
 
 

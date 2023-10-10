@@ -1,10 +1,10 @@
 ﻿using Azure.Identity;
 using Azure.Search.Documents;
 using Azure.Storage.Files.DataLake;
+using AzureSearchIndexer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using SearchIndexerTest;
 
 var host = new HostBuilder()
     .ConfigureFunctionsWorkerDefaults()
