@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 using System.Web;
 using Azure;
@@ -5,6 +6,7 @@ using Azure.Search.Documents;
 using Azure.Storage.Files.DataLake;
 using Azure.Storage.Files.DataLake.Models;
 using AzureSearchIndexer;
+using DataLakeFileSystemClientExtension;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -45,26 +47,53 @@ Console.CancelKeyPress += (s, e) =>
 
 var datalakeServiceClient = new DataLakeServiceClient(datalakeConnectionString);
 
+var pathIndexClient = new PathIndexClient(new SearchClient(searchServiceUri, pathCreatedIndexName, searchServiceCredendial), loggerFactory.CreateLogger<PathIndexClient>());
+var indexer = new DataLakeIndexer(new SearchClient(searchServiceUri, indexName, searchServiceCredendial), loggerFactory.CreateLogger<DataLakeIndexer>());
+
+
 // setup datalake stuff
-//var sourceFileSystemClient = datalakeServiceClient.GetFileSystemClient("stuff-large");
+var sourceFileSystemClient = datalakeServiceClient.GetFileSystemClient("stuff-large");
 //await sourceFileSystemClient.CreateIfNotExistsAsync();
 //await DataLakeWriter.WriteStuff(sourceFileSystemClient);
-
-
 
 //await DataLakeIndexer.CreateIndexIfNotExistsAsync<TestIndexModel>(searchServiceUri, searchServiceCredendial, indexName);
 await DataLakeIndexer.CreateOrUpdateIndexAsync<SomeOtherIndexModel>(searchServiceUri, searchServiceCredendial, indexName);
 await DataLakeIndexer.CreateOrUpdateIndexAsync<PathIndexModel>(searchServiceUri, searchServiceCredendial, pathCreatedIndexName);
 await DataLakeIndexer.CreateOrUpdateIndexAsync<PathIndexModel>(searchServiceUri, searchServiceCredendial, pathDeletedIndexName);
 
+var buffer = new List<PathItem>();
+await foreach (var path in sourceFileSystemClient.ListPathsParallelAsync("/"))
+{
+    if (!path.IsDirectory ?? false)
+    {
+        Console.WriteLine($"adding path {path.Name}");
+        buffer.Add(path);
+    }
+    if (buffer.Count == 1000)
+    {
+        Console.WriteLine("Sending batch....");
+        await pathIndexClient.UpsertPathsAsync(buffer.Select(o => new PathIndexModel
+        {
+            filesystem = sourceFileSystemClient.Name,
+            lastModified = o.LastModified,
+            path = o.Name,
+        }).ToImmutableList());
 
+        buffer.Clear();
+    }
+}
 
+if (buffer.Any())
+{
+    await pathIndexClient.UpsertPathsAsync(buffer.Select(o => new PathIndexModel
+    {
+        filesystem = sourceFileSystemClient.Name,
+        lastModified = o.LastModified,
+        path = o.Name,
+    }).ToImmutableList());
+}
 
-
-
-var pathIndexClient = new PathIndexClient(new SearchClient(searchServiceUri, pathCreatedIndexName, searchServiceCredendial), loggerFactory.CreateLogger<PathIndexClient>());
-var indexer = new DataLakeIndexer(new SearchClient(searchServiceUri, indexName, searchServiceCredendial), loggerFactory.CreateLogger<DataLakeIndexer>());
-
+return;
 
 
 var documentCountResult = await new SearchClient(searchServiceUri, indexName, searchServiceCredendial).GetDocumentCountAsync();
@@ -72,7 +101,11 @@ Console.WriteLine(documentCountResult.Value);
 
 
 Console.WriteLine("Running indexer...");
-var options = new ListPathsOptions { FromLastModified = new DateTimeOffset(2023, 9, 23, 5, 0, 0, TimeSpan.Zero) };
+var options = new ListPathsOptions
+{
+    FromLastModified = new DateTimeOffset(2023, 9, 23, 5, 0, 0, TimeSpan.Zero),
+    Filter = "path"
+};
 
 Func<PathIndexModel, FileDownloadInfo, Task<SomeOtherIndexModel?>> somefunc = async (path, file) =>
 {

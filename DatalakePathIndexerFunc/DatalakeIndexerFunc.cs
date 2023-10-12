@@ -37,7 +37,6 @@ public class DatalakePathIndexer
             return new PathIndexModel
             {
                 filesystem = fileSystem,
-                key = Convert.ToBase64String(Encoding.UTF8.GetBytes(body.Data.Url)),
                 lastModified = body.EventTime,
                 path = path,
             };
@@ -61,7 +60,6 @@ public class DatalakePathIndexer
             return new PathIndexModel
             {
                 filesystem = fileSystem,
-                key = Convert.ToBase64String(Encoding.UTF8.GetBytes(body.Data.Url)),
                 lastModified = body.EventTime,
                 path = path,
             };

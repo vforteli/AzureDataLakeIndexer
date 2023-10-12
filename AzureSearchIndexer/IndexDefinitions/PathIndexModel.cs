@@ -1,4 +1,5 @@
-﻿using Azure.Search.Documents.Indexes;
+﻿using System.Text;
+using Azure.Search.Documents.Indexes;
 
 namespace AzureSearchIndexer;
 
@@ -7,11 +8,11 @@ namespace AzureSearchIndexer;
 /// </summary>
 public record PathIndexModel
 {
-    // hmm.. maybe path as key? or something else? hash?
+    // not sure if this is such a great idea... although this index should be pretty self sufficient and not tinkered with from the outside
     [SimpleField(IsKey = true, IsFilterable = true, IsSortable = true)]
-    public string key { get; init; } = "";
+    public string key => Convert.ToBase64String(Encoding.UTF8.GetBytes(string.Join("/", filesystem, path)));
 
-    [SimpleField(IsFilterable = true)]
+    [SearchableField(IsFilterable = true, AnalyzerName = "keyword")]
     public string path { get; init; } = "";
 
     [SimpleField(IsFilterable = true)]
