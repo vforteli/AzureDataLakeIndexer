@@ -1,6 +1,9 @@
 ﻿using System.Collections.Immutable;
 using System.Diagnostics;
 using Azure.Search.Documents;
+using Azure.Storage.Files.DataLake;
+using Azure.Storage.Files.DataLake.Models;
+using DataLakeFileSystemClientExtension;
 using Microsoft.Extensions.Logging;
 
 namespace AzureSearchIndexer;
@@ -23,18 +26,21 @@ public class PathIndexClient
     /// <summary>
     /// Upsert paths to path index
     /// </summary>
-    public async Task UpsertPathsAsync(ImmutableList<PathIndexModel> paths)
+    public async Task<UpsertPathsResult> UpsertPathsAsync(ImmutableList<PathIndexModel> paths)
     {
         try
         {
             var response = await _pathIndexSearchClient.MergeOrUploadDocumentsAsync(paths);
 
-            _logger.LogInformation(
-                "Status: {status}, created: {created}, modified: {modified}, failed: {failed}",
-                response.GetRawResponse().Status,
-                response.Value.Results.Count(o => o.Status == 201),
-                response.Value.Results.Count(o => o.Status == 200),
-                response.Value.Results.Count(o => o.Status >= 400));
+            var result = new UpsertPathsResult
+            {
+                Created = response.Value.Results.Count(o => o.Status == 201),
+                Modified = response.Value.Results.Count(o => o.Status == 200),
+                Failed = response.Value.Results.Count(o => o.Status >= 400),
+            };
+
+            _logger.LogInformation("Status: {status}, created: {created}, modified: {modified}, failed: {failed}", response.GetRawResponse().Status, result.Created, result.Modified, result.Failed);
+            return result;
         }
         catch (Exception ex)
         {
@@ -91,4 +97,63 @@ public class PathIndexClient
             orderByFilter = $"key gt '{previousKey}'";
         }
     }
+
+
+    /// <summary>
+    /// Rebuild the path index by listing all files in specified path
+    /// </summary>
+    public async Task<UpsertPathsResult> RebuildPathsIndexAsync(DataLakeFileSystemClient sourceFileSystemClient, string sourcePath)
+    {
+        long created = 0;
+        long modified = 0;
+        long failed = 0;
+
+        var buffer = new List<PathItem>();
+        await foreach (var path in sourceFileSystemClient.ListPathsParallelAsync(sourcePath))
+        {
+            if (!path.IsDirectory ?? false)
+            {
+                buffer.Add(path);
+            }
+            if (buffer.Count == 1000)
+            {
+                var result = await UpsertPathsAsync(buffer.Select(o => new PathIndexModel
+                {
+                    filesystem = sourceFileSystemClient.Name,
+                    lastModified = o.LastModified,
+                    path = o.Name,
+                }).ToImmutableList());
+
+                created += result.Created;
+                modified += result.Modified;
+                failed += result.Failed;
+
+                buffer.Clear();
+            }
+        }
+
+        if (buffer.Any())
+        {
+            await UpsertPathsAsync(buffer.Select(o => new PathIndexModel
+            {
+                filesystem = sourceFileSystemClient.Name,
+                lastModified = o.LastModified,
+                path = o.Name,
+            }).ToImmutableList());
+        }
+
+        return new UpsertPathsResult
+        {
+            Created = created,
+            Modified = modified,
+            Failed = failed,
+        };
+    }
+}
+
+public record UpsertPathsResult
+{
+    required public long Created { get; init; }
+    required public long Modified { get; init; }
+    required public long Failed { get; init; }
 }

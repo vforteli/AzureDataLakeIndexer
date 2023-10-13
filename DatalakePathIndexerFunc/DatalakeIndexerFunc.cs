@@ -1,5 +1,4 @@
 ﻿using System.Collections.Immutable;
-using System.Text;
 using Azure.Messaging.ServiceBus;
 using Azure.Storage.Files.DataLake;
 using AzureSearchIndexer;
@@ -80,7 +79,6 @@ public class DatalakePathIndexer
     }
 
 
-
     [Function("RunIndexer")]
     public async Task RunIndexer([TimerTrigger("0 0 0 * * *")] TimerInfo timerInfo, FunctionContext context) => await RunIndexerAsync(context.CancellationToken);
 
@@ -92,7 +90,11 @@ public class DatalakePathIndexer
         _logger.LogInformation("Running indexer...");
 
         // so this should actually be the time of the last successful run        
-        var paths = _pathIndexClient.ListPathsAsync(new ListPathsOptions { FromLastModified = new DateTimeOffset(2023, 9, 28, 5, 0, 0, TimeSpan.Zero) });
+        var paths = _pathIndexClient.ListPathsAsync(new ListPathsOptions
+        {
+            FromLastModified = new DateTimeOffset(2023, 9, 28, 5, 0, 0, TimeSpan.Zero),
+            Filter = "search.ismatch('partition_43*')",
+        });
         var indexerResult = await _dataLakeIndexer.RunDocumentIndexerOnPathsAsync(_dataLakeServiceClient, paths, IndexMapper.MapSomethingToSomethingElseAsync, token);
 
         _logger.LogInformation(
@@ -106,14 +108,4 @@ public class DatalakePathIndexer
             indexerResult.DocumentUploadModifiedCount,
             indexerResult.DocumentUploadFailedCount);
     }
-}
-
-
-public record IndexerFoo
-{
-    // filesystem
-    // path
-    // targetindex
-    // indexmodel
-    // mapperfunc
 }

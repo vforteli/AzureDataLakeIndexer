@@ -61,39 +61,10 @@ await DataLakeIndexer.CreateOrUpdateIndexAsync<SomeOtherIndexModel>(searchServic
 await DataLakeIndexer.CreateOrUpdateIndexAsync<PathIndexModel>(searchServiceUri, searchServiceCredendial, pathCreatedIndexName);
 await DataLakeIndexer.CreateOrUpdateIndexAsync<PathIndexModel>(searchServiceUri, searchServiceCredendial, pathDeletedIndexName);
 
-var buffer = new List<PathItem>();
-await foreach (var path in sourceFileSystemClient.ListPathsParallelAsync("/"))
-{
-    if (!path.IsDirectory ?? false)
-    {
-        Console.WriteLine($"adding path {path.Name}");
-        buffer.Add(path);
-    }
-    if (buffer.Count == 1000)
-    {
-        Console.WriteLine("Sending batch....");
-        await pathIndexClient.UpsertPathsAsync(buffer.Select(o => new PathIndexModel
-        {
-            filesystem = sourceFileSystemClient.Name,
-            lastModified = o.LastModified,
-            path = o.Name,
-        }).ToImmutableList());
 
-        buffer.Clear();
-    }
-}
+//await pathIndexClient.RebuildPathsIndexAsync(sourceFileSystemClient, "/");
 
-if (buffer.Any())
-{
-    await pathIndexClient.UpsertPathsAsync(buffer.Select(o => new PathIndexModel
-    {
-        filesystem = sourceFileSystemClient.Name,
-        lastModified = o.LastModified,
-        path = o.Name,
-    }).ToImmutableList());
-}
-
-return;
+//return;
 
 
 var documentCountResult = await new SearchClient(searchServiceUri, indexName, searchServiceCredendial).GetDocumentCountAsync();
@@ -104,7 +75,7 @@ Console.WriteLine("Running indexer...");
 var options = new ListPathsOptions
 {
     FromLastModified = new DateTimeOffset(2023, 9, 23, 5, 0, 0, TimeSpan.Zero),
-    Filter = "path"
+    Filter = "search.ismatch('partition_43*')",
 };
 
 Func<PathIndexModel, FileDownloadInfo, Task<SomeOtherIndexModel?>> somefunc = async (path, file) =>

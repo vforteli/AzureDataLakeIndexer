@@ -13,11 +13,11 @@ public record PathIndexModel
     public string key => Convert.ToBase64String(Encoding.UTF8.GetBytes(string.Join("/", filesystem, path)));
 
     [SearchableField(IsFilterable = true, AnalyzerName = "keyword")]
-    public string path { get; init; } = "";
+    required public string path { get; init; } = "";
 
     [SimpleField(IsFilterable = true)]
-    public string filesystem { get; init; } = "";
+    required public string filesystem { get; init; } = "";
 
     [SimpleField(IsFilterable = true, IsSortable = true)]
-    public DateTimeOffset lastModified { get; init; }
+    required public DateTimeOffset lastModified { get; init; }
 }

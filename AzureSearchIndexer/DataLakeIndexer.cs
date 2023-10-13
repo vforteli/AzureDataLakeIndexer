@@ -105,39 +105,36 @@ public class DataLakeIndexer
 
             try
             {
-                while (!pathsBuffer.IsCompleted)
+                while (pathsBuffer.TryTake(out var path, Timeout.Infinite, cancellationToken))
                 {
                     await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-                    if (pathsBuffer.TryTake(out var path, Timeout.Infinite, cancellationToken))
+                    var taskId = Guid.NewGuid();
+                    readTasks.TryAdd(taskId, Task.Run(async () =>
                     {
-                        var taskId = Guid.NewGuid();
-                        readTasks.TryAdd(taskId, Task.Run(async () =>
+                        try
                         {
-                            try
-                            {
-                                var file = await dataLakeServiceClient.GetFileSystemClient(path.filesystem).GetFileClient(path.path).ReadAsync(cancellationToken).ConfigureAwait(false);
+                            var file = await dataLakeServiceClient.GetFileSystemClient(path.filesystem).GetFileClient(path.path).ReadAsync(cancellationToken).ConfigureAwait(false);
 
-                                var document = await func.Invoke(path, file.Value);
-                                if (document != null)
-                                {
-                                    documents.Add(document);
-                                    Interlocked.Increment(ref documentReadCount);
-                                }
-                            }
-                            catch (TaskCanceledException) { }
-                            catch (Exception ex)
+                            var document = await func.Invoke(path, file.Value);
+                            if (document != null)
                             {
-                                Interlocked.Increment(ref documentReadFailedCount);
-                                _logger.LogError(ex, "Failed deserializing document {path}", path.path);
+                                documents.Add(document);
+                                Interlocked.Increment(ref documentReadCount);
                             }
-                            finally
-                            {
-                                readTasks.TryRemove(taskId, out _);
-                                semaphore.Release();
-                            }
-                        }, cancellationToken));
-                    }
+                        }
+                        catch (TaskCanceledException) { }
+                        catch (Exception ex)
+                        {
+                            Interlocked.Increment(ref documentReadFailedCount);
+                            _logger.LogError(ex, "Failed deserializing document {path}", path.path);
+                        }
+                        finally
+                        {
+                            readTasks.TryRemove(taskId, out _);
+                            semaphore.Release();
+                        }
+                    }, cancellationToken));
                 }
 
                 await Task.WhenAll(readTasks.Select(o => o.Value));
