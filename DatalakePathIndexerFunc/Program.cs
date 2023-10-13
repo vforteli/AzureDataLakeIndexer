@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-var host = new HostBuilder()
+new HostBuilder()
     .ConfigureFunctionsWorkerDefaults()
     .ConfigureServices(services =>
     {
@@ -20,6 +20,5 @@ var host = new HostBuilder()
         services.AddSingleton(o => new PathIndexClient(new SearchClient(new Uri(azureSearchServiceUri), "path-created-index", new DefaultAzureCredential()), o.GetRequiredService<ILogger<PathIndexClient>>()));
         services.AddSingleton(o => new DataLakeIndexer(new SearchClient(new Uri(azureSearchServiceUri), "someindex-large", new DefaultAzureCredential()), o.GetRequiredService<ILogger<DataLakeIndexer>>()));
     })
-    .Build();
+    .Build().Run();
 
-host.Run();

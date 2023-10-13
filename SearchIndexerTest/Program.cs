@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.Text.Json;
 using System.Web;
 using Azure;
@@ -6,7 +5,6 @@ using Azure.Search.Documents;
 using Azure.Storage.Files.DataLake;
 using Azure.Storage.Files.DataLake.Models;
 using AzureSearchIndexer;
-using DataLakeFileSystemClientExtension;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -74,7 +72,7 @@ Console.WriteLine(documentCountResult.Value);
 Console.WriteLine("Running indexer...");
 var options = new ListPathsOptions
 {
-    FromLastModified = new DateTimeOffset(2023, 9, 23, 5, 0, 0, TimeSpan.Zero),
+    FromLastModified = new DateTimeOffset(2023, 9, 28, 5, 0, 0, TimeSpan.Zero),
     Filter = "search.ismatch('partition_43*')",
 };
 

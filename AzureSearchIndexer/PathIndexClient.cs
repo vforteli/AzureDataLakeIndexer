@@ -8,6 +8,9 @@ using Microsoft.Extensions.Logging;
 
 namespace AzureSearchIndexer;
 
+/// <summary>
+/// Wraps a search client with methods for managing the path index
+/// </summary>
 public class PathIndexClient
 {
     private readonly SearchClient _pathIndexSearchClient;
