@@ -7,6 +7,7 @@ using Azure.Storage.Files.DataLake.Models;
 using AzureSearchIndexer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using SearchIndexerTest;
 
 const string indexName = "someindex-large";
 const string pathCreatedIndexName = "path-created-index";
@@ -59,8 +60,9 @@ await DataLakeIndexer.CreateOrUpdateIndexAsync<SomeOtherIndexModel>(searchServic
 await DataLakeIndexer.CreateOrUpdateIndexAsync<PathIndexModel>(searchServiceUri, searchServiceCredendial, pathCreatedIndexName);
 await DataLakeIndexer.CreateOrUpdateIndexAsync<PathIndexModel>(searchServiceUri, searchServiceCredendial, pathDeletedIndexName);
 
-
-//await pathIndexClient.RebuildPathsIndexAsync(sourceFileSystemClient, "/");
+// testing filterint with larger index...
+await pathIndexClient.UploadTestPathsAsync("doesntexist", DataLakeWriter.GeneratePaths(1000, 100, 100));
+// await pathIndexClient.RebuildPathsIndexAsync(sourceFileSystemClient, "/");
 
 //return;
 

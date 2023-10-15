@@ -152,6 +152,55 @@ public class PathIndexClient
             Failed = failed,
         };
     }
+
+    /// <summary>
+    /// Debug stuff..
+    /// </summary>
+    public async Task<UpsertPathsResult> UploadTestPathsAsync(string filesystemName, IEnumerable<string> paths)
+    {
+        long created = 0;
+        long modified = 0;
+        long failed = 0;
+
+        var buffer = new List<string>();
+        foreach (var path in paths)
+        {
+            buffer.Add(path);
+
+            if (buffer.Count == 1000)
+            {
+                var result = await UpsertPathsAsync(buffer.Select(o => new PathIndexModel
+                {
+                    filesystem = filesystemName,
+                    lastModified = DateTime.UtcNow,
+                    path = o,
+                }).ToImmutableList());
+
+                created += result.Created;
+                modified += result.Modified;
+                failed += result.Failed;
+
+                buffer.Clear();
+            }
+        }
+
+        if (buffer.Any())
+        {
+            await UpsertPathsAsync(buffer.Select(o => new PathIndexModel
+            {
+                filesystem = filesystemName,
+                lastModified = DateTime.UtcNow,
+                path = o,
+            }).ToImmutableList());
+        }
+
+        return new UpsertPathsResult
+        {
+            Created = created,
+            Modified = modified,
+            Failed = failed,
+        };
+    }
 }
 
 public record UpsertPathsResult

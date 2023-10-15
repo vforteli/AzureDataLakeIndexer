@@ -26,12 +26,21 @@ public class DatalakePathIndexer
 
     // todo other triggers? should be able to run scheduled with partitions etc...
     // the big question is, where to keep the run logs... but this depends a bit on context
+    // todo does this make sense? should indexer partitions etc be a runtime thing, or?
 
-    [Function("RunIndexer")]
-    public async Task RunIndexer([TimerTrigger("0 0 0 * * *")] TimerInfo timerInfo, FunctionContext context) => await RunIndexerAsync(context.CancellationToken);
+    [Function(nameof(RunIndexer4))]
+    public async Task RunIndexer4([TimerTrigger("0 0 0 * * *")] TimerInfo timerInfo, FunctionContext context) => await RunIndexerAsync("partition_4*", context.CancellationToken);
 
+    [Function(nameof(RunIndexer3))]
+    public async Task RunIndexer3([TimerTrigger("0 0 1 * * *")] TimerInfo timerInfo, FunctionContext context) => await RunIndexerAsync("partition_3*", context.CancellationToken);
 
-    public async Task RunIndexerAsync(CancellationToken token)
+    [Function(nameof(RunIndexer2))]
+    public async Task RunIndexer2([TimerTrigger("0 0 2 * * *")] TimerInfo timerInfo, FunctionContext context) => await RunIndexerAsync("partition_2*", context.CancellationToken);
+
+    /// <summary>
+    /// Runs the indexer for some partition
+    /// </summary>
+    public async Task RunIndexerAsync(string partition, CancellationToken token)
     {
         _logger.LogInformation("Running indexer...");
 
@@ -39,8 +48,9 @@ public class DatalakePathIndexer
         var paths = _pathIndexClient.ListPathsAsync(new ListPathsOptions
         {
             FromLastModified = new DateTimeOffset(2023, 9, 28, 5, 0, 0, TimeSpan.Zero),
-            Filter = "search.ismatch('partition_43*')",
+            Filter = $"filesystem eq 'stuff-large' and search.ismatch('{partition}')",  // todo fix hardcoded filesystem...
         });
+
         var indexerResult = await _dataLakeIndexer.RunDocumentIndexerOnPathsAsync(_dataLakeServiceClient, paths, IndexMapper.MapSomethingToSomethingElseAsync, token);
 
         _logger.LogInformation(
