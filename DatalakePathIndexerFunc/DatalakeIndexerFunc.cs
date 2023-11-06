@@ -28,14 +28,21 @@ public class DatalakePathIndexer
     // the big question is, where to keep the run logs... but this depends a bit on context
     // todo does this make sense? should indexer partitions etc be a runtime thing, or?
 
-    [Function(nameof(RunIndexer4))]
-    public async Task RunIndexer4([TimerTrigger("0 0 0 * * *")] TimerInfo timerInfo, FunctionContext context) => await RunIndexerAsync("partition_4*", context.CancellationToken);
+    [Function(nameof(RunIndexer1))]
+    public async Task RunIndexer1([TimerTrigger("0 10 2 * * *")] TimerInfo timerInfo, FunctionContext context) => await RunIndexerAsync("partition_1*", context.CancellationToken);
+
+    [Function(nameof(RunIndexer2))]
+    public async Task RunIndexer2([TimerTrigger("0 0 2 * * *")] TimerInfo timerInfo, FunctionContext context) => await RunIndexerAsync("partition_2*", context.CancellationToken);
 
     [Function(nameof(RunIndexer3))]
     public async Task RunIndexer3([TimerTrigger("0 0 1 * * *")] TimerInfo timerInfo, FunctionContext context) => await RunIndexerAsync("partition_3*", context.CancellationToken);
 
-    [Function(nameof(RunIndexer2))]
-    public async Task RunIndexer2([TimerTrigger("0 0 2 * * *")] TimerInfo timerInfo, FunctionContext context) => await RunIndexerAsync("partition_2*", context.CancellationToken);
+    [Function(nameof(RunIndexer4))]
+    public async Task RunIndexer4([TimerTrigger("0 0 0 * * *")] TimerInfo timerInfo, FunctionContext context) => await RunIndexerAsync("partition_4*", context.CancellationToken);
+
+    [Function(nameof(RunIndexer5))]
+    public async Task RunIndexer5([TimerTrigger("0 20 2 * * *")] TimerInfo timerInfo, FunctionContext context) => await RunIndexerAsync("partition_5*", context.CancellationToken);
+
 
     /// <summary>
     /// Runs the indexer for some partition

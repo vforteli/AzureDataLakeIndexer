@@ -61,7 +61,7 @@ await DataLakeIndexer.CreateOrUpdateIndexAsync<PathIndexModel>(searchServiceUri,
 await DataLakeIndexer.CreateOrUpdateIndexAsync<PathIndexModel>(searchServiceUri, searchServiceCredendial, pathDeletedIndexName);
 
 // testing filterint with larger index...
-await pathIndexClient.UploadTestPathsAsync("doesntexist", DataLakeWriter.GeneratePaths(1000, 100, 100));
+//await pathIndexClient.UploadTestPathsAsync("doesntexist", DataLakeWriter.GeneratePaths(1000, 100, 100));
 // await pathIndexClient.RebuildPathsIndexAsync(sourceFileSystemClient, "/");
 
 //return;
