@@ -9,8 +9,11 @@
 		<FunctionsEnableExecutorSourceGen>True</FunctionsEnableExecutorSourceGen>
 		<RuntimeIdentifier>linux-x64</RuntimeIdentifier>
 		<PublishReadyToRun>true</PublishReadyToRun>
+		<FunctionsEnableWorkerIndexing>True</FunctionsEnableWorkerIndexing>
+		<FunctionsAutoRegisterGeneratedMetadataProvider>True</FunctionsAutoRegisterGeneratedMetadataProvider>
 	</PropertyGroup>
 	<ItemGroup>
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
 		<PackageReference Include="Microsoft.Azure.Functions.Worker" Version="1.19.0" />
 		<PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="1.15.1" />
 		<PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.EventGrid" Version="3.4.0" />
