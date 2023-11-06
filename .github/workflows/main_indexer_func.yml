@@ -27,17 +27,17 @@ jobs:
 
     - name: Build
       working-directory: DatalakePathIndexerFunc/
-      run: dotnet publish -c Release
+      run: dotnet publish -c Release -o publish/
 
     - name: Create zip
-      working-directory: DatalakePathIndexerFunc/bin/Release/net7.0/publish
+      working-directory: DatalakePathIndexerFunc/publish
       run: zip -r indexerfunc.zip ./
 
     - name: Upload artifact
       uses: actions/upload-artifact@v3
       with:
         name: indexerfunc
-        path: DatalakePathIndexerFunc/bin/Release/net7.0/publish/indexerfunc.zip
+        path: DatalakePathIndexerFunc/publish/indexerfunc.zip
 
 
   deploy:    

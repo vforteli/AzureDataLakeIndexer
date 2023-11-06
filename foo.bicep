@@ -150,6 +150,7 @@ resource datalakeIndexerFunc 'Microsoft.Web/sites@2022-09-01' = {
       ]
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
+      use32BitWorkerProcess: false
     }
     httpsOnly: true
   }
