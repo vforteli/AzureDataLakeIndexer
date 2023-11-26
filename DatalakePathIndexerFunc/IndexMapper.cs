@@ -7,6 +7,9 @@ namespace DatalakePathIndexerFunc;
 
 public static class IndexMapper
 {
+    /// <summary>
+    /// This is just an example function for mapping from a document model to an index model
+    /// </summary>
     public static async Task<SomeOtherIndexModel?> MapSomethingToSomethingElseAsync(PathIndexModel path, FileDownloadInfo file)
     {
         var document = await JsonSerializer.DeserializeAsync<TestIndexModel>(file.Content).ConfigureAwait(false);

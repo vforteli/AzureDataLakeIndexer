@@ -47,6 +47,8 @@ public class DatalakePathIndexer(ILoggerFactory loggerFactory, PathIndexClient p
             Filter = $"filesystem eq 'stuff-large' and search.ismatch('{partition}')",  // todo fix hardcoded filesystem...
         });
 
+        // todo this is slightly problematic atm from a DI point of view... the datalakeindexer takes a searchclient as a dependency, and this is tied to a specific index
+        // do we perhaps want to dynamically figure out which index to write to here?
         var indexerResult = await dataLakeIndexer.RunDocumentIndexerOnPathsAsync(dataLakeServiceClient, paths, IndexMapper.MapSomethingToSomethingElseAsync, token);
 
         _logger.LogInformation(
