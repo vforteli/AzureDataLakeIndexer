@@ -147,15 +147,15 @@ resource datalakeIndexerFunc 'Microsoft.Web/sites@2022-09-01' = {
           name: 'ServiceBusConnection__fullyQualifiedNamespace'
           value: '${serviceBus.name}.servicebus.windows.net'
         }
-        {
-          name: 'WEBSITE_USE_PLACEHOLDER_DOTNETISOLATED'
-          value: '1'
-        }
+        // {
+        //   name: 'WEBSITE_USE_PLACEHOLDER_DOTNETISOLATED'
+        //   value: '1'
+        // }
       ]
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       use32BitWorkerProcess: false
-      netFrameworkVersion: 'v8.0'
+      // netFrameworkVersion: 'v8.0'
     }
     httpsOnly: true
   }
