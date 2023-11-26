@@ -101,7 +101,7 @@ resource datalakeIndexerFunc 'Microsoft.Web/sites@2022-09-01' = {
     serverFarmId: hostingPlan.id
     siteConfig: {
       functionAppScaleLimit: 1
-      linuxFxVersion: 'DOTNET-ISOLATED|7.0'
+      linuxFxVersion: 'DOTNET-ISOLATED|8.0'
       appSettings: [
         {
           name: 'AzureWebJobsStorage__accountName'
@@ -155,7 +155,7 @@ resource datalakeIndexerFunc 'Microsoft.Web/sites@2022-09-01' = {
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       use32BitWorkerProcess: false
-      netFrameworkVersion: 'v7.0'
+      netFrameworkVersion: 'v8.0'
     }
     httpsOnly: true
   }

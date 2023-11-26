@@ -1,25 +1,26 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
-		<TargetFramework>net7.0</TargetFramework>
+		<TargetFramework>net8.0</TargetFramework>
 		<AzureFunctionsVersion>v4</AzureFunctionsVersion>
 		<OutputType>Exe</OutputType>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<FunctionsEnableExecutorSourceGen>True</FunctionsEnableExecutorSourceGen>
 		<RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+		<SelfContained>true</SelfContained>
 		<PublishReadyToRun>true</PublishReadyToRun>
 		<FunctionsEnableWorkerIndexing>True</FunctionsEnableWorkerIndexing>
 		<FunctionsAutoRegisterGeneratedMetadataProvider>True</FunctionsAutoRegisterGeneratedMetadataProvider>
 	</PropertyGroup>
 	<ItemGroup>
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
-		<PackageReference Include="Microsoft.Azure.Functions.Worker" Version="1.19.0" />
-		<PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="1.15.1" />
+		<PackageReference Include="Microsoft.Azure.Functions.Worker" Version="1.20.0" />
+		<PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="1.16.2" />
 		<PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.EventGrid" Version="3.4.0" />
-		<PackageReference Include="Azure.Identity" Version="1.10.2" />
-		<PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.ServiceBus" Version="5.13.0" />
-		<PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Timer" Version="4.2.0" />
+		<PackageReference Include="Azure.Identity" Version="1.10.4" />
+		<PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.ServiceBus" Version="5.14.1" />
+		<PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Timer" Version="4.3.0" />
 	</ItemGroup>
 	<ItemGroup>
 		<None Update="host.json">
