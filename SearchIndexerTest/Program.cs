@@ -53,12 +53,15 @@ var indexer = new DataLakeIndexer(new SearchClient(searchServiceUri, indexName, 
 // setup datalake stuff
 var sourceFileSystemClient = datalakeServiceClient.GetFileSystemClient("stuff-large");
 //await sourceFileSystemClient.CreateIfNotExistsAsync();
-//await DataLakeWriter.WriteStuff(sourceFileSystemClient);
+
 
 //await DataLakeIndexer.CreateIndexIfNotExistsAsync<TestIndexModel>(searchServiceUri, searchServiceCredendial, indexName);
 await DataLakeIndexer.CreateOrUpdateIndexAsync<SomeOtherIndexModel>(searchServiceUri, searchServiceCredendial, indexName);
 await DataLakeIndexer.CreateOrUpdateIndexAsync<PathIndexModel>(searchServiceUri, searchServiceCredendial, pathCreatedIndexName);
 await DataLakeIndexer.CreateOrUpdateIndexAsync<PathIndexModel>(searchServiceUri, searchServiceCredendial, pathDeletedIndexName);
+
+
+await DataLakeWriter.WriteStuff(sourceFileSystemClient);
 
 // testing filterint with larger index...
 //await pathIndexClient.UploadTestPathsAsync("doesntexist", DataLakeWriter.GeneratePaths(1000, 100, 100));

@@ -11,19 +11,12 @@ namespace AzureSearchIndexer;
 /// <summary>
 /// Wraps a search client with methods for managing the path index
 /// </summary>
-public class PathIndexClient
+public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathIndexClient> logger)
 {
-    private readonly SearchClient _pathIndexSearchClient;
-    private readonly ILogger _logger;
+    private readonly SearchClient _pathIndexSearchClient = pathIndexSearchClient;
+    private readonly ILogger _logger = logger;
     private const int logIntervalMilliSeconds = 5000;
     private const int size = 5000;  // this seems to yield the best performance in some not very scientific tests
-
-
-    public PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathIndexClient> logger)
-    {
-        _pathIndexSearchClient = pathIndexSearchClient;
-        _logger = logger;
-    }
 
 
     /// <summary>
@@ -142,55 +135,6 @@ public class PathIndexClient
                 filesystem = sourceFileSystemClient.Name,
                 lastModified = o.LastModified,
                 path = o.Name,
-            }).ToImmutableList());
-        }
-
-        return new UpsertPathsResult
-        {
-            Created = created,
-            Modified = modified,
-            Failed = failed,
-        };
-    }
-
-    /// <summary>
-    /// Debug stuff..
-    /// </summary>
-    public async Task<UpsertPathsResult> UploadTestPathsAsync(string filesystemName, IEnumerable<string> paths)
-    {
-        long created = 0;
-        long modified = 0;
-        long failed = 0;
-
-        var buffer = new List<string>();
-        foreach (var path in paths)
-        {
-            buffer.Add(path);
-
-            if (buffer.Count == 1000)
-            {
-                var result = await UpsertPathsAsync(buffer.Select(o => new PathIndexModel
-                {
-                    filesystem = filesystemName,
-                    lastModified = DateTime.UtcNow,
-                    path = o,
-                }).ToImmutableList());
-
-                created += result.Created;
-                modified += result.Modified;
-                failed += result.Failed;
-
-                buffer.Clear();
-            }
-        }
-
-        if (buffer.Any())
-        {
-            await UpsertPathsAsync(buffer.Select(o => new PathIndexModel
-            {
-                filesystem = filesystemName,
-                lastModified = DateTime.UtcNow,
-                path = o,
             }).ToImmutableList());
         }
 

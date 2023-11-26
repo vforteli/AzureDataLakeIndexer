@@ -2,8 +2,6 @@
 
 namespace AzureSearchIndexer;
 
-
-
 public abstract record BaseIndexModel
 {
     [SimpleField(IsKey = true)]

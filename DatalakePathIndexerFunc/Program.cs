@@ -21,4 +21,3 @@ new HostBuilder()
         services.AddSingleton(o => new DataLakeIndexer(new SearchClient(new Uri(azureSearchServiceUri), "someindex-large", new DefaultAzureCredential()), o.GetRequiredService<ILogger<DataLakeIndexer>>()));
     })
     .Build().Run();
-

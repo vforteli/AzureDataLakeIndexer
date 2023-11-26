@@ -9,24 +9,16 @@ namespace DatalakePathIndexerFunc;
 /// <summary>
 /// Func for updating the path index from datalake events
 /// </summary>
-public class PathIndexerFunc
+public class PathIndexerFunc(ILoggerFactory loggerFactory, PathIndexClient pathIndexClient)
 {
-    private readonly ILogger _logger;
-    private readonly PathIndexClient _pathIndexClient;
-
-    public PathIndexerFunc(ILoggerFactory loggerFactory, PathIndexClient pathIndexClient)
-    {
-        _logger = loggerFactory.CreateLogger<PathIndexerFunc>();
-        _pathIndexClient = pathIndexClient;
-    }
-
+    private readonly ILogger _logger = loggerFactory.CreateLogger<PathIndexerFunc>();
 
     [Function("HandleBlobCreatedEvent")]
     public async Task HandleBlobCreatedEvent([ServiceBusTrigger("blob-created-event-queue", Connection = "ServiceBusConnection", IsBatched = true)] ServiceBusReceivedMessage[] messages)
     {
         _logger.LogInformation("Received {count} blob created events in batch", messages.Length);
 
-        await _pathIndexClient.UpsertPathsAsync(messages.Select(o =>
+        await pathIndexClient.UpsertPathsAsync(messages.Select(o =>
         {
             var body = o.Body.ToObjectFromJson<BlobEvent>();
             var (fileSystem, path) = Utils.UrlToFilesystemAndPath(body.Data.Url);

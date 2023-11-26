@@ -11,19 +11,10 @@ using Microsoft.Extensions.Logging;
 
 namespace AzureSearchIndexer;
 
-public class DataLakeIndexer
+public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer> logger)
 {
-    private readonly SearchClient _searchClient;
-    private readonly ILogger _logger;
     private const int MaxReadThreads = 128;
     private const int DocumentBatchSize = 1000;    // according to documentation this is the max batch size... although it seems to work with higher values... they dont bring performance benefits though
-
-
-    public DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer> logger)
-    {
-        _searchClient = searchClient;
-        _logger = logger;
-    }
 
 
     /// <summary>
@@ -97,7 +88,7 @@ public class DataLakeIndexer
 
         var readDocumentsTask = Task.Run(async () =>
         {
-            using var timer = new Timer(s => { _logger.LogInformation("Read {documentsReadCount} documents... {dps} fps", documentReadCount, documentReadCount / (stopwatch.ElapsedMilliseconds / 1000f)); }, null, 3000, 3000);
+            using var timer = new Timer(s => { logger.LogInformation("Read {documentsReadCount} documents... {dps} fps", documentReadCount, documentReadCount / (stopwatch.ElapsedMilliseconds / 1000f)); }, null, 3000, 3000);
 
             var readTasks = new ConcurrentDictionary<Guid, Task>();
 
@@ -127,7 +118,7 @@ public class DataLakeIndexer
                         catch (Exception ex)
                         {
                             Interlocked.Increment(ref documentReadFailedCount);
-                            _logger.LogError(ex, "Failed deserializing document {path}", path.path);
+                            logger.LogError(ex, "Failed deserializing document {path}", path.path);
                         }
                         finally
                         {
@@ -142,7 +133,7 @@ public class DataLakeIndexer
             catch (TaskCanceledException) { }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Something went horribly wrong reading documents");
+                logger.LogError(ex, "Something went horribly wrong reading documents");
             }
             finally
             {
@@ -157,19 +148,19 @@ public class DataLakeIndexer
                 try
                 {
                     var currentCount = Interlocked.Add(ref documentUploadCount, batch.Count);
-                    _logger.LogInformation("Sending batch with {bufferCount} documents, total: {currentCount}", batch.Count, currentCount);
+                    logger.LogInformation("Sending batch with {bufferCount} documents, total: {currentCount}", batch.Count, currentCount);
 
-                    var response = await _searchClient.MergeOrUploadDocumentsAsync(batch, cancellationToken: cancellationToken).ConfigureAwait(false);
+                    var response = await searchClient.MergeOrUploadDocumentsAsync(batch, cancellationToken: cancellationToken).ConfigureAwait(false);
 
                     Interlocked.Add(ref documentUploadCreatedCount, response.Value.Results.Count(o => o.Status == 201));
                     Interlocked.Add(ref documentUploadModifiedCount, response.Value.Results.Count(o => o.Status == 200));
                     Interlocked.Add(ref documentUploadFailedCount, response.Value.Results.Count(o => o.Status >= 400));
 
-                    _logger.LogInformation("Status: {status} for batch at {currentCount}", response.GetRawResponse().Status, currentCount);
+                    logger.LogInformation("Status: {status} for batch at {currentCount}", response.GetRawResponse().Status, currentCount);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, $"Uh oh, sending batch failed...");
+                    logger.LogError(ex, $"Uh oh, sending batch failed...");
                 }
             });
 
@@ -196,7 +187,7 @@ public class DataLakeIndexer
 
 
         await Task.WhenAll(readDocumentsTask, uploadDocumentsTask).ConfigureAwait(false);
-        _logger.LogInformation("Indexing done, took {elapsed}", stopwatch.Elapsed);
+        logger.LogInformation("Indexing done, took {elapsed}", stopwatch.Elapsed);
 
         return new IndexerRunMetrics
         {
