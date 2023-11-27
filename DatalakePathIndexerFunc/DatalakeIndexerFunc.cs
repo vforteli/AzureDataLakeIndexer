@@ -49,6 +49,7 @@ public class DatalakePathIndexer(ILoggerFactory loggerFactory, PathIndexClient p
 
         // todo this is slightly problematic atm from a DI point of view... the datalakeindexer takes a searchclient as a dependency, and this is tied to a specific index
         // do we perhaps want to dynamically figure out which index to write to here?
+        // or just a factory method which returns named datalakeindexers, a'la httpclientfactory
         var indexerResult = await dataLakeIndexer.RunDocumentIndexerOnPathsAsync(dataLakeServiceClient, paths, IndexMapper.MapSomethingToSomethingElseAsync, token);
 
         _logger.LogInformation(

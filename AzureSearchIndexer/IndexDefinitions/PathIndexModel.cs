@@ -20,4 +20,6 @@ public record PathIndexModel
 
     [SimpleField(IsFilterable = true, IsSortable = true)]
     required public DateTimeOffset lastModified { get; init; }
+
+    // todo we should probably have a datetimeoffset when the document was added to the path index... in case, well, the message gets stuck in the queue and the lastmodified date already has been passed... hohum
 }

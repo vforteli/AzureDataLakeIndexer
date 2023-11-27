@@ -141,6 +141,7 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
             }
         }, cancellationToken);
 
+        // todo handle retries? failed documents?
         var uploadDocumentsTask = Task.Run(async () =>
         {
             Task UploadBatchAsync(IReadOnlyList<TIndex> batch) => Task.Run(async () =>
