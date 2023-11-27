@@ -13,8 +13,6 @@ namespace AzureSearchIndexer;
 /// </summary>
 public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathIndexClient> logger)
 {
-    private readonly SearchClient _pathIndexSearchClient = pathIndexSearchClient;
-    private readonly ILogger _logger = logger;
     private const int logIntervalMilliSeconds = 5000;
     private const int size = 5000;  // this seems to yield the best performance in some not very scientific tests
 
@@ -26,7 +24,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
     {
         try
         {
-            var response = await _pathIndexSearchClient.MergeOrUploadDocumentsAsync(paths);
+            var response = await pathIndexSearchClient.MergeOrUploadDocumentsAsync(paths);
 
             var result = new UpsertPathsResult
             {
@@ -35,12 +33,12 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
                 Failed = response.Value.Results.Count(o => o.Status >= 400),
             };
 
-            _logger.LogInformation("Status: {status}, created: {created}, modified: {modified}, failed: {failed}", response.GetRawResponse().Status, result.Created, result.Modified, result.Failed);
+            logger.LogInformation("Status: {status}, created: {created}, modified: {modified}, failed: {failed}", response.GetRawResponse().Status, result.Created, result.Modified, result.Failed);
             return result;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Something went wrong uploading to path index :/");
+            logger.LogError(ex, "Something went wrong uploading to path index :/");
             throw;
         }
     }
@@ -51,7 +49,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
     /// </summary>
     public async IAsyncEnumerable<PathIndexModel> ListPathsAsync(ListPathsOptions options)
     {
-        _logger.LogInformation("Getting paths...");
+        logger.LogInformation("Getting paths...");
 
         var lastModifiedFilter = options.FromLastModified.HasValue ? $"lastModified ge {options.FromLastModified:o}" : "";
 
@@ -60,7 +58,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
         var stopwatch = Stopwatch.StartNew();
         using var loggingTimer = new Timer(o =>
         {
-            _logger.LogInformation("Found {count} documents after {elapsedSeconds} seconds, dps: {dps}", count, Math.Round(stopwatch.Elapsed.TotalSeconds), Math.Round(count / stopwatch.Elapsed.TotalSeconds));
+            logger.LogInformation("Found {count} documents after {elapsedSeconds} seconds, dps: {dps}", count, Math.Round(stopwatch.Elapsed.TotalSeconds), Math.Round(count / stopwatch.Elapsed.TotalSeconds));
         }, null, logIntervalMilliSeconds, logIntervalMilliSeconds);
 
 
@@ -76,7 +74,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
             searchOptions.OrderBy.Add("key");
 
             string? previousKey = null;
-            await foreach (var path in (await _pathIndexSearchClient.SearchAsync<PathIndexModel>("", searchOptions)).Value.GetResultsAsync())
+            await foreach (var path in (await pathIndexSearchClient.SearchAsync<PathIndexModel>("", searchOptions)).Value.GetResultsAsync())
             {
                 count++;
                 yield return path.Document;
@@ -86,7 +84,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
 
             if (previousKey == null)
             {
-                _logger.LogInformation("Done. Found {count} documents after {elapsedSeconds} seconds, dps: {dps}", count, Math.Round(stopwatch.Elapsed.TotalSeconds), Math.Round(count / stopwatch.Elapsed.TotalSeconds));
+                logger.LogInformation("Done. Found {count} documents after {elapsedSeconds} seconds, dps: {dps}", count, Math.Round(stopwatch.Elapsed.TotalSeconds), Math.Round(count / stopwatch.Elapsed.TotalSeconds));
                 yield break;
             }
 
@@ -145,11 +143,4 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
             Failed = failed,
         };
     }
-}
-
-public record UpsertPathsResult
-{
-    required public long Created { get; init; }
-    required public long Modified { get; init; }
-    required public long Failed { get; init; }
 }

@@ -44,7 +44,7 @@ public class DatalakePathIndexer(ILoggerFactory loggerFactory, PathIndexClient p
         var paths = pathIndexClient.ListPathsAsync(new ListPathsOptions
         {
             FromLastModified = new DateTimeOffset(2023, 9, 28, 5, 0, 0, TimeSpan.Zero),
-            Filter = $"filesystem eq 'stuff-large' and search.ismatch('{partition}')",  // todo fix hardcoded filesystem...
+            Filter = $"filesystem eq 'stuff-large' and search.ismatch('{partition}')",
         });
 
         // todo this is slightly problematic atm from a DI point of view... the datalakeindexer takes a searchclient as a dependency, and this is tied to a specific index
