@@ -1,10 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Text.Json;
-using Azure;
 using Azure.Search.Documents;
-using Azure.Search.Documents.Indexes;
-using Azure.Search.Documents.Indexes.Models;
 using Azure.Storage.Files.DataLake;
 using Azure.Storage.Files.DataLake.Models;
 using Microsoft.Extensions.Logging;
@@ -15,44 +11,6 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
 {
     private const int MaxReadThreads = 128;
     private const int DocumentBatchSize = 1000;    // according to documentation this is the max batch size... although it seems to work with higher values... they dont bring performance benefits though
-
-
-    /// <summary>
-    /// Create or update an index
-    /// </summary>
-    public static async Task CreateOrUpdateIndexAsync<T>(Uri searchServiceUri, AzureKeyCredential credential, string indexName)
-    {
-        var searchIndexClient = new SearchIndexClient(searchServiceUri, credential);
-
-        try
-        {
-            var result = await searchIndexClient.CreateOrUpdateIndexAsync(new SearchIndex(indexName, new FieldBuilder().Build(typeof(T))));
-            Console.WriteLine($"Index create or update status: {result.GetRawResponse().Status}");
-        }
-        catch (Exception)
-        {
-            Console.WriteLine($"Unable to create or update index {indexName}");
-        }
-    }
-
-
-    /// <summary>
-    /// Run indexer with an index model derived from BaseIndexModel and no custom mapping
-    /// </summary>
-    public async Task<IndexerRunMetrics> RunDocumentIndexerOnPathsAsync<TIndex>(DataLakeServiceClient dataLakeServiceClient, IAsyncEnumerable<PathIndexModel> paths, CancellationToken cancellationToken)
-    where TIndex : BaseIndexModel
-    {
-        async Task<BaseIndexModel?> somefunc(PathIndexModel path, FileDownloadInfo file)
-        {
-            var document = await JsonSerializer.DeserializeAsync<TIndex>(file.Content, cancellationToken: cancellationToken).ConfigureAwait(false);
-
-            return document != null
-                ? document with { pathbase64 = path.key }
-                : null;
-        }
-
-        return await RunDocumentIndexerOnPathsAsync(dataLakeServiceClient, paths, somefunc, cancellationToken);
-    }
 
 
     /// <summary>
@@ -141,7 +99,6 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
             }
         }, cancellationToken);
 
-        // todo handle retries? failed documents?
         var uploadDocumentsTask = Task.Run(async () =>
         {
             Task UploadBatchAsync(IReadOnlyList<TIndex> batch) => Task.Run(async () =>
@@ -151,6 +108,7 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
                     var currentCount = Interlocked.Add(ref documentUploadCount, batch.Count);
                     logger.LogInformation("Sending batch with {bufferCount} documents, total: {currentCount}", batch.Count, currentCount);
 
+                    // todo handle retries? failed documents?
                     var response = await searchClient.MergeOrUploadDocumentsAsync(batch, cancellationToken: cancellationToken).ConfigureAwait(false);
 
                     Interlocked.Add(ref documentUploadCreatedCount, response.Value.Results.Count(o => o.Status == 201));
