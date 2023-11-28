@@ -18,6 +18,7 @@ public class PathIndexerFunc(ILoggerFactory loggerFactory, PathIndexClient pathI
     {
         _logger.LogInformation("Received {count} blob created events in batch", messages.Length);
 
+        var now = DateTime.UtcNow;
         await pathIndexClient.UpsertPathsAsync(messages.Select(o =>
         {
             var body = o.Body.ToObjectFromJson<BlobEvent>();
@@ -26,7 +27,8 @@ public class PathIndexerFunc(ILoggerFactory loggerFactory, PathIndexClient pathI
             return new PathIndexModel
             {
                 filesystem = fileSystem,
-                lastModified = body.EventTime,
+                fileLastModified = body.EventTime,
+                lastModified = now,
                 path = path,
             };
         }).ToImmutableList());
@@ -40,6 +42,7 @@ public class PathIndexerFunc(ILoggerFactory loggerFactory, PathIndexClient pathI
 
         _logger.LogInformation("Received {count} blob deleted events in batch", messages.Length);
 
+        var now = DateTime.UtcNow;
         var documents = messages.Select(o =>
         {
             var body = o.Body.ToObjectFromJson<BlobEvent>();
@@ -49,7 +52,8 @@ public class PathIndexerFunc(ILoggerFactory loggerFactory, PathIndexClient pathI
             return new PathIndexModel
             {
                 filesystem = fileSystem,
-                lastModified = body.EventTime,
+                fileLastModified = body.EventTime,
+                lastModified = now,
                 path = path,
             };
         }).ToImmutableList();

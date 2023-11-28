@@ -19,7 +19,8 @@ public record PathIndexModel
     required public string filesystem { get; init; } = "";
 
     [SimpleField(IsFilterable = true, IsSortable = true)]
-    required public DateTimeOffset lastModified { get; init; }
+    required public DateTimeOffset fileLastModified { get; init; }
 
-    // todo we should probably have a datetimeoffset when the document was added to the path index... in case, well, the message gets stuck in the queue and the lastmodified date already has been passed... hohum
+    [SimpleField(IsFilterable = true, IsSortable = true)]
+    required public DateTimeOffset lastModified { get; init; }
 }

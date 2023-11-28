@@ -109,12 +109,15 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
             {
                 buffer.Add(path);
             }
+
             if (buffer.Count == 1000)
             {
+                var now = DateTime.UtcNow;
                 var result = await UpsertPathsAsync(buffer.Select(o => new PathIndexModel
                 {
                     filesystem = sourceFileSystemClient.Name,
-                    lastModified = o.LastModified,
+                    fileLastModified = o.LastModified,
+                    lastModified = now,
                     path = o.Name,
                 }).ToImmutableList());
 
@@ -128,10 +131,12 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
 
         if (buffer.Any())
         {
+            var now = DateTime.UtcNow;
             await UpsertPathsAsync(buffer.Select(o => new PathIndexModel
             {
                 filesystem = sourceFileSystemClient.Name,
-                lastModified = o.LastModified,
+                fileLastModified = o.LastModified,
+                lastModified = now,
                 path = o.Name,
             }).ToImmutableList());
         }
