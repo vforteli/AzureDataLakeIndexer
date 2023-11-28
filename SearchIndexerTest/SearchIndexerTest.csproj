@@ -27,5 +27,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\AzureSearchIndexer\AzureSearchIndexer.csproj" />
+    <ProjectReference Include="..\IndexModels\IndexModels.csproj" />
   </ItemGroup>
 </Project>

@@ -38,5 +38,6 @@
 			<GlobalPropertiesToRemove>
 			</GlobalPropertiesToRemove>
 		</ProjectReference>
+		<ProjectReference Include="..\IndexModels\IndexModels.csproj" />
 	</ItemGroup>
 </Project>

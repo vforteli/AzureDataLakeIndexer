@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DatalakePathIndexerFunc", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AzureSearchIndexer", "AzureSearchIndexer\AzureSearchIndexer.csproj", "{8450BA42-6306-4D8F-8DB0-7ED20711DE0D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IndexModels", "IndexModels\IndexModels.csproj", "{CA5075FC-F51A-41EC-8744-226B4444B4A5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{8450BA42-6306-4D8F-8DB0-7ED20711DE0D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8450BA42-6306-4D8F-8DB0-7ED20711DE0D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8450BA42-6306-4D8F-8DB0-7ED20711DE0D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CA5075FC-F51A-41EC-8744-226B4444B4A5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CA5075FC-F51A-41EC-8744-226B4444B4A5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CA5075FC-F51A-41EC-8744-226B4444B4A5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CA5075FC-F51A-41EC-8744-226B4444B4A5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

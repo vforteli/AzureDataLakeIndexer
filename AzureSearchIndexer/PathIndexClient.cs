@@ -13,8 +13,8 @@ namespace AzureSearchIndexer;
 /// </summary>
 public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathIndexClient> logger)
 {
-    private const int logIntervalMilliSeconds = 5000;
-    private const int size = 5000;  // this seems to yield the best performance in some not very scientific tests
+    private const int LogIntervalMilliSeconds = 5000;
+    private const int SearchPageSize = 5000;  // this seems to yield the best performance in some not very scientific tests
 
 
     /// <summary>
@@ -24,6 +24,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
     {
         try
         {
+            // todo retry if some documents fail?
             var response = await pathIndexSearchClient.MergeOrUploadDocumentsAsync(paths);
 
             var result = new UpsertPathsResult
@@ -59,7 +60,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
         using var loggingTimer = new Timer(o =>
         {
             logger.LogInformation("Found {count} documents after {elapsedSeconds} seconds, dps: {dps}", count, Math.Round(stopwatch.Elapsed.TotalSeconds), Math.Round(count / stopwatch.Elapsed.TotalSeconds));
-        }, null, logIntervalMilliSeconds, logIntervalMilliSeconds);
+        }, null, LogIntervalMilliSeconds, LogIntervalMilliSeconds);
 
 
         var orderByFilter = "";
@@ -69,7 +70,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
             var searchOptions = new SearchOptions
             {
                 Filter = Utils.ConcatWithAnd(orderByFilter, lastModifiedFilter, options.Filter),
-                Size = size,
+                Size = SearchPageSize,
             };
             searchOptions.OrderBy.Add("key");
 
