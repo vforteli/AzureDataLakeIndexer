@@ -126,19 +126,18 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
             var sendTasks = new ConcurrentBag<Task>();
             var buffer = new List<TIndex>(DocumentBatchSize);
 
-            while (documents.TryTake(out var document, -1))
+            while (!documents.IsCompleted)
             {
-                buffer.Add(document);
-                if (buffer.Count == DocumentBatchSize)   // actually this should also check the size of the batch, it should be max 1000 items or 16 MB
+                if (documents.TryTake(out var document, -1))
+                {
+                    buffer.Add(document);
+                }
+
+                if (buffer.Count == DocumentBatchSize || documents.IsCompleted)   // actually this should also check the size of the batch, it should be max 1000 items or 16 MB
                 {
                     sendTasks.Add(UploadBatchAsync(buffer.AsReadOnly()));
                     buffer = new List<TIndex>(DocumentBatchSize);
                 }
-            }
-
-            if (buffer.Any())
-            {
-                sendTasks.Add(UploadBatchAsync(buffer.AsReadOnly()));
             }
 
             await Task.WhenAll(sendTasks).ConfigureAwait(false);
