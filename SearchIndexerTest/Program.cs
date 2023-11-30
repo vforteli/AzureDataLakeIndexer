@@ -61,7 +61,7 @@ await Utils.CreateOrUpdateIndexAsync<PathIndexModel>(searchServiceUri, searchSer
 await Utils.CreateOrUpdateIndexAsync<PathIndexModel>(searchServiceUri, searchServiceCredendial, pathDeletedIndexName);
 
 
-await DataLakeWriter.WriteStuff(sourceFileSystemClient);
+// await DataLakeWriter.WriteStuff(sourceFileSystemClient);
 
 // testing filterint with larger index...
 //await pathIndexClient.UploadTestPathsAsync("doesntexist", DataLakeWriter.GeneratePaths(1000, 100, 100));
@@ -78,7 +78,7 @@ Console.WriteLine("Running indexer...");
 var options = new ListPathsOptions
 {
     FromLastModified = new DateTimeOffset(2023, 9, 28, 5, 0, 0, TimeSpan.Zero),
-    Filter = "search.ismatch('partition_43*')",
+    Filter = "search.ismatch('partition_4*')",
 };
 
 Func<PathIndexModel, FileDownloadInfo, Task<SomeOtherIndexModel?>> somefunc = async (path, file) =>
