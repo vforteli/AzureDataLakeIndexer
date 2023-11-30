@@ -29,6 +29,10 @@ jobs:
       working-directory: DatalakePathIndexerFunc/
       run: dotnet publish -c Release --self-contained --runtime linux-x64 -o publish/ 
 
+    - name: Test
+      run: dotnet test 
+      # add coverage etc...
+
     - name: Create zip
       working-directory: DatalakePathIndexerFunc/publish
       run: zip -r indexerfunc.zip ./
