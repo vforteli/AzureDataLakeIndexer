@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AzureSearchIndexer", "Azure
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IndexModels", "IndexModels\IndexModels.csproj", "{CA5075FC-F51A-41EC-8744-226B4444B4A5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AzureSearchIndexerTests", "AzureSearchIndexerTests\AzureSearchIndexerTests.csproj", "{1FC0D593-A699-4004-A168-C7240E94A28F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +35,10 @@ Global
 		{CA5075FC-F51A-41EC-8744-226B4444B4A5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CA5075FC-F51A-41EC-8744-226B4444B4A5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CA5075FC-F51A-41EC-8744-226B4444B4A5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1FC0D593-A699-4004-A168-C7240E94A28F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1FC0D593-A699-4004-A168-C7240E94A28F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1FC0D593-A699-4004-A168-C7240E94A28F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1FC0D593-A699-4004-A168-C7240E94A28F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
