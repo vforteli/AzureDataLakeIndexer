@@ -20,7 +20,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
     /// <summary>
     /// Upsert paths to path index
     /// </summary>
-    public async Task<UpsertPathsResult> UpsertPathsAsync(ImmutableList<PathIndexModel> paths)
+    public virtual async Task<UpsertPathsResult> UpsertPathsAsync(ImmutableList<PathIndexModel> paths)
     {
         try
         {
@@ -48,7 +48,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
     /// <summary>
     /// List paths from index
     /// </summary>
-    public async IAsyncEnumerable<PathIndexModel> ListPathsAsync(ListPathsOptions options)
+    public virtual async IAsyncEnumerable<PathIndexModel> ListPathsAsync(ListPathsOptions options)
     {
         logger.LogInformation("Getting paths...");
 
@@ -97,7 +97,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
     /// <summary>
     /// Rebuild the path index by listing all files in specified path
     /// </summary>
-    public async Task<UpsertPathsResult> RebuildPathsIndexAsync(DataLakeFileSystemClient sourceFileSystemClient, string sourcePath)
+    public virtual async Task<UpsertPathsResult> RebuildPathsIndexAsync(DataLakeFileSystemClient sourceFileSystemClient, string sourcePath)
     {
         const int bufferSize = 1000;
 
