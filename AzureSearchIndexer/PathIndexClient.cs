@@ -97,7 +97,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
     /// <summary>
     /// Rebuild the path index by listing all files in specified path
     /// </summary>
-    public virtual async Task<UpsertPathsResult> RebuildPathsIndexAsync(DataLakeFileSystemClient sourceFileSystemClient, string sourcePath)
+    public virtual async Task<UpsertPathsResult> RebuildPathsIndexAsync(IAsyncEnumerable<PathItem> paths, string sourceFileSystemName)
     {
         const int bufferSize = 1000;
 
@@ -106,14 +106,14 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
         long failed = 0;
 
         var buffer = new List<PathItem>(bufferSize);
-        var paths = sourceFileSystemClient.ListPathsParallelAsync(sourcePath).GetAsyncEnumerator();
 
+        var pathsEnumerator = paths.GetAsyncEnumerator();
         while (true)
         {
-            var hasCurrent = await paths.MoveNextAsync();
+            var hasCurrent = await pathsEnumerator.MoveNextAsync();
             if (hasCurrent)
             {
-                buffer.Add(paths.Current);
+                buffer.Add(pathsEnumerator.Current);
             }
 
             if (buffer.Count == bufferSize || (!hasCurrent && buffer.Count > 0))
@@ -121,7 +121,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
                 var now = DateTime.UtcNow;
                 var result = await UpsertPathsAsync(buffer.Select(o => new PathIndexModel
                 {
-                    filesystem = sourceFileSystemClient.Name,
+                    filesystem = sourceFileSystemName,
                     fileLastModified = o.LastModified,
                     lastModified = now,
                     path = o.Name,
