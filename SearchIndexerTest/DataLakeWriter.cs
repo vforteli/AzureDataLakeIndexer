@@ -28,7 +28,31 @@ public static class DataLakeWriter
         int count = 0;
         var paths = GeneratePaths(100, 1000, 10);
 
-        using var foo = new Timer((o) => { Console.WriteLine($"uploaded {count} files and directories..."); }, null, 1000, 1000);
+        using var logTimer = new Timer((o) => { Console.WriteLine($"uploaded {count} files and directories..."); }, null, 1000, 1000);
+        await Parallel.ForEachAsync(paths, new ParallelOptions { MaxDegreeOfParallelism = 300 }, async (path, token) =>
+        {
+            var fileClient = dataLakeFileSystemClient.GetFileClient(path);
+
+            using var memoryStream = new MemoryStream();
+            await JsonSerializer.SerializeAsync(memoryStream, payload); // not exactly efficient, but whatever
+            memoryStream.Position = 0;
+            await fileClient.UploadAsync(memoryStream, overwrite: true);
+            await memoryStream.FlushAsync();
+
+            Interlocked.Increment(ref count);
+        });
+
+        Console.WriteLine($"uploaded {count} files and directories...");
+    }
+
+
+    public static async Task WriteLongerStuff(DataLakeFileSystemClient dataLakeFileSystemClient)
+    {
+        var payload = new TestIndexModel { booleanvalue = true, numbervalue = 42, stringvalue = TextStuff.LongerText };
+        int count = 0;
+        var paths = GeneratePaths(10, 100, 10);
+
+        using var logTimer = new Timer((o) => { Console.WriteLine($"uploaded {count} files and directories..."); }, null, 1000, 1000);
         await Parallel.ForEachAsync(paths, new ParallelOptions { MaxDegreeOfParallelism = 300 }, async (path, token) =>
         {
             var fileClient = dataLakeFileSystemClient.GetFileClient(path);

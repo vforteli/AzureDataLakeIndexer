@@ -62,14 +62,17 @@ await Utils.CreateOrUpdateIndexAsync<PathIndexModel>(searchServiceUri, searchSer
 await Utils.CreateOrUpdateIndexAsync<PathIndexModel>(searchServiceUri, searchServiceCredendial, pathDeletedIndexName);
 
 
-// await DataLakeWriter.WriteStuff(sourceFileSystemClient);
+var largeSourceFileSystem = datalakeServiceClient.GetFileSystemClient("stuff-large-files");
+await largeSourceFileSystem.CreateIfNotExistsAsync();
+
+// await DataLakeWriter.WriteLongerStuff(largeSourceFileSystem);
 
 // testing filterint with larger index...
 //await pathIndexClient.UploadTestPathsAsync("doesntexist", DataLakeWriter.GeneratePaths(1000, 100, 100));
 
 // await pathIndexClient.RebuildPathsIndexAsync(sourceFileSystemClient.ListPathsParallelAsync("/"), sourceFileSystemClient.Name);
 
-//return;
+// return;
 
 
 var documentCountResult = await new SearchClient(searchServiceUri, indexName, searchServiceCredendial).GetDocumentCountAsync();
@@ -80,7 +83,8 @@ Console.WriteLine("Running indexer...");
 var options = new ListPathsOptions
 {
     FromLastModified = new DateTimeOffset(2023, 9, 28, 5, 0, 0, TimeSpan.Zero),
-    Filter = "search.ismatch('partition_46*')",
+    // Filter = "search.ismatch('partition_46*')",
+    Filter = "filesystem eq 'stuff-large-files'"
 };
 
 Func<PathIndexModel, FileDownloadInfo, Task<SomeOtherIndexModel?>> somefunc = async (path, file) =>

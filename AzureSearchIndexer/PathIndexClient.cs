@@ -55,7 +55,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
         var count = 0;
 
         var stopwatch = Stopwatch.StartNew();
-        using var loggingTimer = new Timer(o =>
+        await using var loggingTimer = new Timer(o =>
         {
             logger.LogInformation("Found {count} documents after {elapsedSeconds} seconds, dps: {dps}", count, Math.Round(stopwatch.Elapsed.TotalSeconds), Math.Round(count / stopwatch.Elapsed.TotalSeconds));
         }, null, LogIntervalMilliSeconds, LogIntervalMilliSeconds);
@@ -73,7 +73,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
             searchOptions.OrderBy.Add("key");
 
             string? previousKey = null;
-            await foreach (var path in (await pathIndexSearchClient.SearchAsync<PathIndexModel>("", searchOptions)).Value.GetResultsAsync())
+            await foreach (var path in (await pathIndexSearchClient.SearchAsync<PathIndexModel>("", searchOptions).ConfigureAwait(false)).Value.GetResultsAsync())
             {
                 count++;
                 yield return path.Document;
@@ -108,7 +108,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
         var pathsEnumerator = paths.GetAsyncEnumerator();
         while (true)
         {
-            var hasCurrent = await pathsEnumerator.MoveNextAsync();
+            var hasCurrent = await pathsEnumerator.MoveNextAsync().ConfigureAwait(false);
             if (hasCurrent && (!pathsEnumerator.Current.IsDirectory ?? false))
             {
                 buffer.Add(pathsEnumerator.Current);
