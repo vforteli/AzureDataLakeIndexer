@@ -5,6 +5,7 @@ using Azure.Search.Documents;
 using Azure.Storage.Files.DataLake;
 using Azure.Storage.Files.DataLake.Models;
 using AzureSearchIndexer;
+using DataLakeFileSystemClientExtension;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SearchIndexerTest;
@@ -65,7 +66,8 @@ await Utils.CreateOrUpdateIndexAsync<PathIndexModel>(searchServiceUri, searchSer
 
 // testing filterint with larger index...
 //await pathIndexClient.UploadTestPathsAsync("doesntexist", DataLakeWriter.GeneratePaths(1000, 100, 100));
-// await pathIndexClient.RebuildPathsIndexAsync(sourceFileSystemClient, "/");
+
+await pathIndexClient.RebuildPathsIndexAsync(sourceFileSystemClient.ListPathsParallelAsync("/"), sourceFileSystemClient.Name);
 
 //return;
 

@@ -1,9 +1,7 @@
 ﻿using System.Collections.Immutable;
 using System.Diagnostics;
 using Azure.Search.Documents;
-using Azure.Storage.Files.DataLake;
 using Azure.Storage.Files.DataLake.Models;
-using DataLakeFileSystemClientExtension;
 using Microsoft.Extensions.Logging;
 
 namespace AzureSearchIndexer;
@@ -20,7 +18,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
     /// <summary>
     /// Upsert paths to path index
     /// </summary>
-    public async Task<UpsertPathsResult> UpsertPathsAsync(ImmutableList<PathIndexModel> paths)
+    public virtual async Task<UpsertPathsResult> UpsertPathsAsync(ImmutableList<PathIndexModel> paths)
     {
         try
         {
@@ -48,7 +46,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
     /// <summary>
     /// List paths from index
     /// </summary>
-    public async IAsyncEnumerable<PathIndexModel> ListPathsAsync(ListPathsOptions options)
+    public virtual async IAsyncEnumerable<PathIndexModel> ListPathsAsync(ListPathsOptions options)
     {
         logger.LogInformation("Getting paths...");
 
@@ -97,7 +95,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
     /// <summary>
     /// Rebuild the path index by listing all files in specified path
     /// </summary>
-    public async Task<UpsertPathsResult> RebuildPathsIndexAsync(DataLakeFileSystemClient sourceFileSystemClient, string sourcePath)
+    public virtual async Task<UpsertPathsResult> RebuildPathsIndexAsync(IAsyncEnumerable<PathItem> paths, string sourceFileSystemName)
     {
         const int bufferSize = 1000;
 
@@ -106,14 +104,14 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
         long failed = 0;
 
         var buffer = new List<PathItem>(bufferSize);
-        var paths = sourceFileSystemClient.ListPathsParallelAsync(sourcePath).GetAsyncEnumerator();
 
+        var pathsEnumerator = paths.GetAsyncEnumerator();
         while (true)
         {
-            var hasCurrent = await paths.MoveNextAsync();
-            if (hasCurrent)
+            var hasCurrent = await pathsEnumerator.MoveNextAsync();
+            if (hasCurrent && (!pathsEnumerator.Current.IsDirectory ?? false))
             {
-                buffer.Add(paths.Current);
+                buffer.Add(pathsEnumerator.Current);
             }
 
             if (buffer.Count == bufferSize || (!hasCurrent && buffer.Count > 0))
@@ -121,7 +119,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
                 var now = DateTime.UtcNow;
                 var result = await UpsertPathsAsync(buffer.Select(o => new PathIndexModel
                 {
-                    filesystem = sourceFileSystemClient.Name,
+                    filesystem = sourceFileSystemName,
                     fileLastModified = o.LastModified,
                     lastModified = now,
                     path = o.Name,
