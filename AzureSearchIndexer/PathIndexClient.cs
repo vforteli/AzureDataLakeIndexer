@@ -23,7 +23,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
         try
         {
             // todo retry if some documents fail?
-            var response = await pathIndexSearchClient.MergeOrUploadDocumentsAsync(paths);
+            var response = await pathIndexSearchClient.UploadDocumentsAsync(paths).ConfigureAwait(false);
 
             var result = new UpsertPathsResult
             {
@@ -123,7 +123,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
                     fileLastModified = o.LastModified,
                     lastModified = now,
                     path = o.Name,
-                }).ToImmutableList());
+                }).ToImmutableList()).ConfigureAwait(false);
 
                 created += result.Created;
                 modified += result.Modified;

@@ -10,6 +10,7 @@ namespace AzureSearchIndexer;
 public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer> logger)
 {
     private const int MaxReadThreads = 128;
+    private const int MaxUploadThreads = 2; // this should possibly be set to the number of search units? have to check
     private const int DocumentBatchSize = 1000;    // according to documentation this is the max batch size... although it seems to work with higher values... they dont bring performance benefits though
 
 
@@ -18,7 +19,7 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
     /// </summary>
     public async Task<IndexerRunMetrics> RunDocumentIndexerOnPathsAsync<TIndex>(DataLakeServiceClient dataLakeServiceClient, IAsyncEnumerable<PathIndexModel> paths, Func<PathIndexModel, FileDownloadInfo, Task<TIndex?>> func, CancellationToken cancellationToken)
     {
-        var pathsBuffer = new BlockingCollection<PathIndexModel>();
+        var pathsBuffer = new BlockingCollection<PathIndexModel>(DocumentBatchSize * 3);
 
         var listPathsTask = Task.Run(async () =>
         {
@@ -31,7 +32,7 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
         }, cancellationToken);
 
 
-        var documents = new BlockingCollection<TIndex>();
+        var documents = new BlockingCollection<TIndex>(DocumentBatchSize * 2);
 
         var documentReadCount = 0;
         var documentReadFailedCount = 0;
@@ -65,7 +66,7 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
                         {
                             var file = await dataLakeServiceClient.GetFileSystemClient(path.filesystem).GetFileClient(path.path).ReadAsync(cancellationToken).ConfigureAwait(false);
 
-                            var document = await func.Invoke(path, file.Value);
+                            var document = await func.Invoke(path, file.Value).ConfigureAwait(false);
                             if (document != null)
                             {
                                 documents.Add(document);
@@ -86,7 +87,7 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
                     }, cancellationToken));
                 }
 
-                await Task.WhenAll(readTasks.Select(o => o.Value));
+                await Task.WhenAll(readTasks.Select(o => o.Value)).ConfigureAwait(false);
             }
             catch (TaskCanceledException) { }
             catch (Exception ex)
@@ -101,15 +102,20 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
 
         var uploadDocumentsTask = Task.Run(async () =>
         {
+            using var timer = new Timer(s => { logger.LogInformation("Uploaded documents: created: {created}, modified: {modified}, failed: {failed}", documentUploadCreatedCount, documentUploadModifiedCount, documentUploadFailedCount); }, null, 3000, 3000);
+            using var semaphore = new SemaphoreSlim(MaxUploadThreads, MaxUploadThreads);
+
             Task UploadBatchAsync(IReadOnlyList<TIndex> batch) => Task.Run(async () =>
             {
                 try
                 {
+                    await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+
                     var currentCount = Interlocked.Add(ref documentUploadCount, batch.Count);
                     logger.LogInformation("Sending batch with {bufferCount} documents, total: {currentCount}", batch.Count, currentCount);
 
                     // todo handle retries? failed documents?
-                    var response = await searchClient.MergeOrUploadDocumentsAsync(batch, cancellationToken: cancellationToken).ConfigureAwait(false);
+                    var response = await searchClient.UploadDocumentsAsync(batch, cancellationToken: cancellationToken).ConfigureAwait(false);
 
                     Interlocked.Add(ref documentUploadCreatedCount, response.Value.Results.Count(o => o.Status == 201));
                     Interlocked.Add(ref documentUploadModifiedCount, response.Value.Results.Count(o => o.Status == 200));
@@ -119,7 +125,12 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
                 }
                 catch (Exception ex)
                 {
+                    Interlocked.Add(ref documentUploadFailedCount, batch.Count);
                     logger.LogError(ex, $"Uh oh, sending batch failed...");
+                }
+                finally
+                {
+                    semaphore.Release();
                 }
             });
 

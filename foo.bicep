@@ -30,6 +30,9 @@ resource serviceBus 'Microsoft.ServiceBus/namespaces@2022-10-01-preview' = {
 
   resource blobCreatedEventQueue 'queues' = {
     name: 'blob-created-event-queue'
+    properties: {
+      maxSizeInMegabytes: 2048
+    }
   }
 
   resource blobDeletedEventQueue 'queues' = {
@@ -155,7 +158,7 @@ resource datalakeIndexerFunc 'Microsoft.Web/sites@2022-09-01' = {
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       use32BitWorkerProcess: false
-      // netFrameworkVersion: 'v8.0'
+      netFrameworkVersion: 'v8.0'
     }
     httpsOnly: true
   }
