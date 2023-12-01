@@ -1,9 +1,7 @@
 ﻿using System.Collections.Immutable;
 using System.Diagnostics;
 using Azure.Search.Documents;
-using Azure.Storage.Files.DataLake;
 using Azure.Storage.Files.DataLake.Models;
-using DataLakeFileSystemClientExtension;
 using Microsoft.Extensions.Logging;
 
 namespace AzureSearchIndexer;
@@ -111,7 +109,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
         while (true)
         {
             var hasCurrent = await pathsEnumerator.MoveNextAsync();
-            if (hasCurrent)
+            if (hasCurrent && (!pathsEnumerator.Current.IsDirectory ?? false))
             {
                 buffer.Add(pathsEnumerator.Current);
             }
