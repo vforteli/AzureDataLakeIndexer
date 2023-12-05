@@ -12,7 +12,7 @@ public record PathIndexModel
     [SimpleField(IsKey = true, IsFilterable = true, IsSortable = true)]
     public string key => Convert.ToBase64String(Encoding.UTF8.GetBytes(string.Join("%2f", filesystem, pathUrlEncoded)));
 
-    [SearchableField(IsFilterable = true, AnalyzerName = "keyword")]
+    [SearchableField(IsFilterable = true, AnalyzerName = "foo-analyser")]
     required public string pathUrlEncoded { get; init; } = "";
 
     [SimpleField(IsFilterable = true)]

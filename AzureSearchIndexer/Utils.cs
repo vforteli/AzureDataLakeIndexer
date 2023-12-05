@@ -19,18 +19,26 @@ public static class Utils
     /// <summary>
     /// Create or update an index
     /// </summary>
-    public static async Task CreateOrUpdateIndexAsync<T>(Uri searchServiceUri, AzureKeyCredential credential, string indexName)
+    public static async Task CreateOrUpdateIndexAsync<T>(Uri searchServiceUri, AzureKeyCredential credential, string indexName, CustomAnalyzer? analyzer = null)
     {
         var searchIndexClient = new SearchIndexClient(searchServiceUri, credential);
 
         try
         {
-            var result = await searchIndexClient.CreateOrUpdateIndexAsync(new SearchIndex(indexName, new FieldBuilder().Build(typeof(T))));
+            var index = new SearchIndex(indexName, new FieldBuilder().Build(typeof(T)));
+
+            if (analyzer != null)
+            {
+                index.Analyzers.Add(analyzer);
+            }
+
+            var result = await searchIndexClient.CreateOrUpdateIndexAsync(index);
             Console.WriteLine($"Index create or update status: {result.GetRawResponse().Status}");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             Console.WriteLine($"Unable to create or update index {indexName}");
+            Console.WriteLine(ex);
         }
     }
 }

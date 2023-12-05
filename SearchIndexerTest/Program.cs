@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Web;
 using Azure;
 using Azure.Search.Documents;
+using Azure.Search.Documents.Indexes.Models;
 using Azure.Storage.Files.DataLake;
 using Azure.Storage.Files.DataLake.Models;
 using AzureSearchIndexer;
@@ -55,11 +56,13 @@ var indexer = new DataLakeIndexer(new SearchClient(searchServiceUri, indexName, 
 var sourceFileSystemClient = datalakeServiceClient.GetFileSystemClient("stuff-large");
 //await sourceFileSystemClient.CreateIfNotExistsAsync();
 
+var analyzer = new CustomAnalyzer("foo-analyser", "keyword_v2");
+analyzer.TokenFilters.Add("lowercase");
 
 //await DataLakeIndexer.CreateIndexIfNotExistsAsync<TestIndexModel>(searchServiceUri, searchServiceCredendial, indexName);
 await Utils.CreateOrUpdateIndexAsync<SomeOtherIndexModel>(searchServiceUri, searchServiceCredendial, indexName);
-await Utils.CreateOrUpdateIndexAsync<PathIndexModel>(searchServiceUri, searchServiceCredendial, pathCreatedIndexName);
-await Utils.CreateOrUpdateIndexAsync<PathIndexModel>(searchServiceUri, searchServiceCredendial, pathDeletedIndexName);
+await Utils.CreateOrUpdateIndexAsync<PathIndexModel>(searchServiceUri, searchServiceCredendial, pathCreatedIndexName, analyzer);
+await Utils.CreateOrUpdateIndexAsync<PathIndexModel>(searchServiceUri, searchServiceCredendial, pathDeletedIndexName, analyzer);
 
 
 var largeSourceFileSystem = datalakeServiceClient.GetFileSystemClient("stuff-large-files");
@@ -70,7 +73,7 @@ await largeSourceFileSystem.CreateIfNotExistsAsync();
 // testing filterint with larger index...
 //await pathIndexClient.UploadTestPathsAsync("doesntexist", DataLakeWriter.GeneratePaths(1000, 100, 100));
 
-// await pathIndexClient.RebuildPathsIndexAsync(largeSourceFileSystem.ListPathsParallelAsync("/"), largeSourceFileSystem.Name);
+await pathIndexClient.RebuildPathsIndexAsync(largeSourceFileSystem.ListPathsParallelAsync("/"), largeSourceFileSystem.Name);
 
 // return;
 
@@ -83,7 +86,7 @@ Console.WriteLine("Running indexer...");
 var options = new ListPathsOptions
 {
     FromLastModified = new DateTimeOffset(2023, 9, 28, 5, 0, 0, TimeSpan.Zero),
-    Filter = "search.ismatch('partition_0%2fcustomer_0*')",
+    Filter = "search.ismatch('partition_0%2fcustomer_2*')",
     // Filter = "filesystem eq 'stuff-large-files'"
 };
 
