@@ -1,5 +1,6 @@
 ﻿using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Web;
 using Azure.Search.Documents;
 using Azure.Storage.Files.DataLake.Models;
 using Microsoft.Extensions.Logging;
@@ -122,7 +123,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
                     filesystem = sourceFileSystemName,
                     fileLastModified = o.LastModified,
                     lastModified = now,
-                    path = o.Name,
+                    pathUrlEncoded = HttpUtility.UrlEncode(o.Name),
                 }).ToImmutableList()).ConfigureAwait(false);
 
                 created += result.Created;

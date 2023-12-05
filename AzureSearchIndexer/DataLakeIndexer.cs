@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Net;
 using Azure.Search.Documents;
 using Azure.Storage.Files.DataLake;
 using Azure.Storage.Files.DataLake.Models;
@@ -64,7 +65,7 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
                     {
                         try
                         {
-                            var file = await dataLakeServiceClient.GetFileSystemClient(path.filesystem).GetFileClient(path.path).ReadAsync(cancellationToken).ConfigureAwait(false);
+                            var file = await dataLakeServiceClient.GetFileSystemClient(path.filesystem).GetFileClient(WebUtility.UrlDecode(path.pathUrlEncoded)).ReadAsync(cancellationToken).ConfigureAwait(false);
 
                             var document = await func.Invoke(path, file.Value).ConfigureAwait(false);
                             if (document != null)
@@ -77,7 +78,7 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
                         catch (Exception ex)
                         {
                             Interlocked.Increment(ref documentReadFailedCount);
-                            logger.LogError(ex, "Failed deserializing document {path}", path.path);
+                            logger.LogError(ex, "Failed deserializing document {path}", path.pathUrlEncoded);
                         }
                         finally
                         {

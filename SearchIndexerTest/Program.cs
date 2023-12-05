@@ -70,7 +70,7 @@ await largeSourceFileSystem.CreateIfNotExistsAsync();
 // testing filterint with larger index...
 //await pathIndexClient.UploadTestPathsAsync("doesntexist", DataLakeWriter.GeneratePaths(1000, 100, 100));
 
-// await pathIndexClient.RebuildPathsIndexAsync(sourceFileSystemClient.ListPathsParallelAsync("/"), sourceFileSystemClient.Name);
+// await pathIndexClient.RebuildPathsIndexAsync(largeSourceFileSystem.ListPathsParallelAsync("/"), largeSourceFileSystem.Name);
 
 // return;
 
@@ -83,8 +83,8 @@ Console.WriteLine("Running indexer...");
 var options = new ListPathsOptions
 {
     FromLastModified = new DateTimeOffset(2023, 9, 28, 5, 0, 0, TimeSpan.Zero),
-    // Filter = "search.ismatch('partition_46*')",
-    Filter = "filesystem eq 'stuff-large-files'"
+    Filter = "search.ismatch('partition_0%2fcustomer_0*')",
+    // Filter = "filesystem eq 'stuff-large-files'"
 };
 
 Func<PathIndexModel, FileDownloadInfo, Task<SomeOtherIndexModel?>> somefunc = async (path, file) =>
@@ -99,7 +99,7 @@ Func<PathIndexModel, FileDownloadInfo, Task<SomeOtherIndexModel?>> somefunc = as
             pathbase64 = path.key,
             stringvalue = document.stringvalue,
             eTag = file.Properties.ETag.ToString(),
-            pathUrlEncoded = HttpUtility.UrlEncode(path.path),
+            pathUrlEncoded = path.pathUrlEncoded,
             lastModified = path.lastModified,
         }
         : null;

@@ -1,4 +1,5 @@
 ﻿using System.Collections.Immutable;
+using System.Web;
 using Azure.Messaging.ServiceBus;
 using AzureSearchIndexer;
 using Microsoft.Azure.Functions.Worker;
@@ -29,7 +30,7 @@ public class PathIndexerFunc(ILoggerFactory loggerFactory, PathIndexClient pathI
                 filesystem = fileSystem,
                 fileLastModified = body.EventTime,
                 lastModified = now,
-                path = path,
+                pathUrlEncoded = HttpUtility.UrlEncode(path),
             };
         }).ToImmutableList());
     }
@@ -54,7 +55,7 @@ public class PathIndexerFunc(ILoggerFactory loggerFactory, PathIndexClient pathI
                 filesystem = fileSystem,
                 fileLastModified = body.EventTime,
                 lastModified = now,
-                path = path,
+                pathUrlEncoded = HttpUtility.UrlEncode(path),
             };
         }).ToImmutableList();
 

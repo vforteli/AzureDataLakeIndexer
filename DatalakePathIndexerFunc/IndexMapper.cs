@@ -22,7 +22,7 @@ public static class IndexMapper
                 pathbase64 = path.key,
                 stringvalue = document.stringvalue,
                 eTag = file.Properties.ETag.ToString(),
-                pathUrlEncoded = HttpUtility.UrlEncode(path.path),
+                pathUrlEncoded = HttpUtility.UrlEncode(path.pathUrlEncoded),
                 lastModified = path.lastModified,
             }
             : null;
