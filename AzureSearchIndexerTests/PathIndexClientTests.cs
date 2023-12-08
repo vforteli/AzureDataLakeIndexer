@@ -1,15 +1,13 @@
-namespace AzureSearchIndexerTests;
 
 using Azure;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Models;
-using Azure.Storage.Files.DataLake;
 using Azure.Storage.Files.DataLake.Models;
 using AzureSearchIndexer;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using NSubstitute.ExceptionExtensions;
-using DataLakeFileSystemClientExtension;
+
+namespace AzureSearchIndexerTests;
 
 public class Tests
 {

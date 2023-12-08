@@ -1,4 +1,5 @@
-﻿using Azure;
+﻿using System.Text.Json;
+using Azure;
 using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Indexes.Models;
 
@@ -40,5 +41,16 @@ public static class Utils
             Console.WriteLine($"Unable to create or update index {indexName}");
             Console.WriteLine(ex);
         }
+    }
+
+
+    /// <summary>
+    /// Get the length of the object serialized to json using STJ without allocating too much additional memory
+    /// </summary>
+    public static async Task<long> GetJsonLengthAsync(object thing, JsonSerializerOptions? options = default, CancellationToken token = default)
+    {
+        var stream = new CountingStream();
+        await JsonSerializer.SerializeAsync(stream, thing, options, token);
+        return stream.Length;
     }
 }
