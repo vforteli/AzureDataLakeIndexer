@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Net;
 using Azure.Search.Documents;
@@ -11,7 +12,7 @@ namespace AzureSearchIndexer;
 public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer> logger)
 {
     private const int MaxReadThreads = 128;
-    private const int MaxUploadThreads = 8; // this should possibly be set to the number of search units? have to check
+    private const int MaxUploadThreads = 4; // this should possibly be set to the number of search units? have to check
     private const int DocumentBatchSize = 1000;    // according to documentation this is the max batch size... although it seems to work with higher values... they dont bring performance benefits though
 
 
@@ -107,7 +108,10 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
             await using var timer = new Timer(s => { logger.LogInformation("Uploaded documents: created: {created}, modified: {modified}, failed: {failed}", documentUploadCreatedCount, documentUploadModifiedCount, documentUploadFailedCount); }, null, 3000, 3000);
             using var semaphore = new SemaphoreSlim(MaxUploadThreads, MaxUploadThreads);
 
-            Task UploadBatchAsync(IReadOnlyCollection<TIndex> batch) => Task.Run(async () =>
+            var sendTasks = new ConcurrentDictionary<Guid, Task>();
+            var buffer = new List<TIndex>(DocumentBatchSize);
+
+            Task UploadBatchAsync(IImmutableList<TIndex> batch, Guid taskId) => Task.Run(async () =>
             {
                 try
                 {
@@ -132,12 +136,10 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
                 }
                 finally
                 {
+                    sendTasks.TryRemove(taskId, out _);
                     semaphore.Release();
                 }
             });
-
-            var sendTasks = new ConcurrentBag<Task>();
-            var buffer = new List<TIndex>(DocumentBatchSize);
 
             while (!documents.IsCompleted)
             {
@@ -148,12 +150,13 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
 
                 if (buffer.Count == DocumentBatchSize || (documents.IsCompleted && buffer.Count > 0))   // actually this should also check the size of the batch, it should be max 1000 items or 16 MB
                 {
-                    sendTasks.Add(UploadBatchAsync(buffer.AsReadOnly()));
-                    buffer = new List<TIndex>(DocumentBatchSize);
+                    var taskId = Guid.NewGuid();
+                    sendTasks.TryAdd(taskId, UploadBatchAsync(buffer.ToImmutableList(), taskId));
+                    buffer.Clear();
                 }
             }
 
-            await Task.WhenAll(sendTasks).ConfigureAwait(false);
+            await Task.WhenAll(sendTasks.Select(o => o.Value)).ConfigureAwait(false);
         }, cancellationToken);
 
 
