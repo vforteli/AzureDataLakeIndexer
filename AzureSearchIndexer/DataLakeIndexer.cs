@@ -1,5 +1,4 @@
 ﻿using System.Collections.Concurrent;
-using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Net;
 using Azure.Search.Documents;
@@ -35,15 +34,10 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
 
         long totalSize = 0;
         var documents = new BlockingCollection<TIndex>(DocumentBatchSize * (MaxUploadThreads + 2));
+        var batchingUploader = new BatchingUploader(logger, MaxUploadThreads, DocumentBatchSize);
 
         var documentReadCount = 0;
         var documentReadFailedCount = 0;
-
-        var documentUploadCount = 0;
-        var documentUploadFailedCount = 0;
-        var documentUploadCreatedCount = 0;
-        var documentUploadModifiedCount = 0;
-
 
         var stopwatch = Stopwatch.StartNew();
 
@@ -53,10 +47,10 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
 
             var readTasks = new ConcurrentDictionary<Guid, Task>();
 
-            using var semaphore = new SemaphoreSlim(MaxReadThreads, MaxReadThreads);
-
             try
             {
+                using var semaphore = new SemaphoreSlim(MaxReadThreads, MaxReadThreads);
+
                 while (pathsBuffer.TryTake(out var path, Timeout.Infinite, cancellationToken))
                 {
                     await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -103,62 +97,7 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
             }
         }, cancellationToken);
 
-        var uploadDocumentsTask = Task.Run(async () =>
-        {
-            await using var timer = new Timer(s => { logger.LogInformation("Uploaded documents: created: {created}, modified: {modified}, failed: {failed}", documentUploadCreatedCount, documentUploadModifiedCount, documentUploadFailedCount); }, null, 3000, 3000);
-            using var semaphore = new SemaphoreSlim(MaxUploadThreads, MaxUploadThreads);
-
-            var sendTasks = new ConcurrentDictionary<Guid, Task>();
-            var buffer = new List<TIndex>(DocumentBatchSize);
-
-            Task UploadBatchAsync(IImmutableList<TIndex> batch, Guid taskId) => Task.Run(async () =>
-            {
-                try
-                {
-                    await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-
-                    var currentCount = Interlocked.Add(ref documentUploadCount, batch.Count);
-                    logger.LogInformation("Sending batch with {bufferCount} documents, total: {currentCount}", batch.Count, currentCount);
-
-                    // todo handle retries? failed documents?
-                    var response = await searchClient.UploadDocumentsAsync(batch, cancellationToken: cancellationToken).ConfigureAwait(false);
-
-                    Interlocked.Add(ref documentUploadCreatedCount, response.Value.Results.Count(o => o.Status == 201));
-                    Interlocked.Add(ref documentUploadModifiedCount, response.Value.Results.Count(o => o.Status == 200));
-                    Interlocked.Add(ref documentUploadFailedCount, response.Value.Results.Count(o => o.Status >= 400));
-
-                    logger.LogInformation("Status: {status} for batch at {currentCount}", response.GetRawResponse().Status, currentCount);
-                }
-                catch (Exception ex)
-                {
-                    Interlocked.Add(ref documentUploadFailedCount, batch.Count);
-                    logger.LogError(ex, $"Uh oh, sending batch failed...");
-                }
-                finally
-                {
-                    sendTasks.TryRemove(taskId, out _);
-                    semaphore.Release();
-                }
-            });
-
-            while (!documents.IsCompleted)
-            {
-                if (documents.TryTake(out var document, -1))
-                {
-                    buffer.Add(document);
-                }
-
-                if (buffer.Count == DocumentBatchSize || (documents.IsCompleted && buffer.Count > 0))   // actually this should also check the size of the batch, it should be max 1000 items or 16 MB
-                {
-                    var taskId = Guid.NewGuid();
-                    sendTasks.TryAdd(taskId, UploadBatchAsync(buffer.ToImmutableList(), taskId));
-                    buffer.Clear();
-                }
-            }
-
-            await Task.WhenAll(sendTasks.Select(o => o.Value)).ConfigureAwait(false);
-        }, cancellationToken);
-
+        var uploadDocumentsTask = batchingUploader.UploadBatchesAsync(documents, searchClient, cancellationToken);
 
         await Task.WhenAll(readDocumentsTask, uploadDocumentsTask).ConfigureAwait(false);
         logger.LogInformation("Indexing done, took {elapsed}", stopwatch.Elapsed);
@@ -168,10 +107,10 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
         {
             DocumentReadCount = documentReadCount,
             DocumentReadFailedCount = documentReadFailedCount,
-            DocumentUploadCount = documentUploadCount,
-            DocumentUploadCreatedCount = documentUploadCreatedCount,
-            DocumentUploadFailedCount = documentUploadFailedCount,
-            DocumentUploadModifiedCount = documentUploadModifiedCount,
+            DocumentUploadCount = uploadDocumentsTask.Result.UploadCount,
+            DocumentUploadCreatedCount = uploadDocumentsTask.Result.CreatedCount,
+            DocumentUploadFailedCount = uploadDocumentsTask.Result.FailedCoumt,
+            DocumentUploadModifiedCount = uploadDocumentsTask.Result.ModifiedCount,
         };
     }
 }
