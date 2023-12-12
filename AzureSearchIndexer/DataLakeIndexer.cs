@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using Azure.Search.Documents;
@@ -12,7 +12,13 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
 {
     private const int MaxReadThreads = 128;
     private const int MaxUploadThreads = 4; // this should possibly be set to the number of search units? have to check
-    private const int DocumentBatchSize = 1000;    // according to documentation this is the max batch size... although it seems to work with higher values... they dont bring performance benefits though
+    private const int DocumentBatchSize = 1000;    // max value in azure ai search atm is 32000, however higher values do not seem to yield better performance
+
+    /// <summary>
+    /// Max size of batch is 64MB
+    /// This is the size of the json serialized batch, so the contents have to be serialized first to get the real size
+    /// </summary>
+    private const long MaxBatchSizeBytes = 63 * 1024 * 1024;
 
 
     /// <summary>
@@ -32,9 +38,8 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
             pathsBuffer.CompleteAdding();
         }, cancellationToken);
 
-        long totalSize = 0;
         var documents = new BlockingCollection<TIndex>(DocumentBatchSize * (MaxUploadThreads + 2));
-        var batchingUploader = new BatchingUploader(logger, MaxUploadThreads, DocumentBatchSize);
+        var batchingUploader = new BatchingUploader(logger, MaxUploadThreads, DocumentBatchSize, MaxBatchSizeBytes);
 
         var documentReadCount = 0;
         var documentReadFailedCount = 0;
@@ -65,7 +70,6 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
                             var document = await func.Invoke(path, file.Value).ConfigureAwait(false);
                             if (document != null)
                             {
-                                Interlocked.Add(ref totalSize, await Utils.GetJsonLengthAsync(document));
                                 documents.Add(document);
                                 Interlocked.Increment(ref documentReadCount);
                             }
@@ -101,7 +105,6 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
 
         await Task.WhenAll(readDocumentsTask, uploadDocumentsTask).ConfigureAwait(false);
         logger.LogInformation("Indexing done, took {elapsed}", stopwatch.Elapsed);
-        logger.LogInformation("Total size of documents in json form: {size}", totalSize);
 
         return new IndexerRunMetrics
         {

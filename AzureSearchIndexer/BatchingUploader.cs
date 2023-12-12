@@ -7,7 +7,8 @@ namespace AzureSearchIndexer;
 
 public record UploadMetrics(int UploadCount, int FailedCoumt, int CreatedCount, int ModifiedCount);
 
-public record BatchingUploader(ILogger logger, int MaxUploadThreads, int DocumentBatchSize)
+
+public record BatchingUploader(ILogger logger, int maxUploadThreads, int maxBatchCount, long maxBatchSizeBytes = 64 * 1024 * 1024)
 {
     public virtual async Task<UploadMetrics> UploadBatchesAsync<TIndex>(BlockingCollection<TIndex> documents, SearchClient searchClient, CancellationToken cancellationToken = default)
     {
@@ -16,19 +17,19 @@ public record BatchingUploader(ILogger logger, int MaxUploadThreads, int Documen
         var documentUploadCreatedCount = 0;
         var documentUploadModifiedCount = 0;
 
+        long currentBatchSizeBytes = 0;
+
         var sendTasks = new ConcurrentDictionary<Guid, Task>();
-        var buffer = new List<TIndex>(DocumentBatchSize);
+        var buffer = new List<TIndex>(maxBatchCount);
+
+        using var semaphore = new SemaphoreSlim(maxUploadThreads, maxUploadThreads);
 
         Task UploadBatchAsync(IImmutableList<TIndex> batch, Guid taskId) => Task.Run(async () =>
         {
-            using var semaphore = new SemaphoreSlim(MaxUploadThreads, MaxUploadThreads);
-
             try
             {
-                await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-
                 var currentCount = Interlocked.Add(ref documentUploadCount, batch.Count);
-                logger.LogInformation("Sending batch with {bufferCount} documents, total: {currentCount}", batch.Count, currentCount);
+                logger.LogInformation("Sending batch with {bufferCount} documents, size: {size}, total: {currentCount}", batch.Count, currentBatchSizeBytes, currentCount);
 
                 // todo handle retries? failed documents?
                 var response = await searchClient.UploadDocumentsAsync(batch, cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -49,7 +50,7 @@ public record BatchingUploader(ILogger logger, int MaxUploadThreads, int Documen
                 sendTasks.TryRemove(taskId, out _);
                 semaphore.Release();
             }
-        });
+        }, cancellationToken);
 
         await using var timer = new Timer(s => { logger.LogInformation("Uploaded documents: created: {created}, modified: {modified}, failed: {failed}", documentUploadCreatedCount, documentUploadModifiedCount, documentUploadFailedCount); }, null, 3000, 3000);
 
@@ -57,14 +58,40 @@ public record BatchingUploader(ILogger logger, int MaxUploadThreads, int Documen
         {
             if (documents.TryTake(out var document, -1, cancellationToken))
             {
-                buffer.Add(document);
+                if (document != null)  // todo dahek, why is would document be null here?
+                {
+                    var currentDocumentSize = await Utils.GetJsonLengthAsync(document, token: cancellationToken).ConfigureAwait(false);
+
+                    if (currentDocumentSize > maxBatchSizeBytes)
+                    {
+                        Interlocked.Increment(ref documentUploadFailedCount);
+                        logger.LogWarning("Found document larger than max batch size: {path}", "uh.. yea"); // todo ugh, do we really want to have the path here as well so we can log the failing documents... guess so
+                    }
+                    else
+                    {
+                        currentBatchSizeBytes += currentDocumentSize;
+
+                        if (currentBatchSizeBytes > maxBatchSizeBytes)
+                        {
+                            var taskId = Guid.NewGuid();
+                            await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                            sendTasks.TryAdd(taskId, UploadBatchAsync(buffer.ToImmutableList(), taskId));
+                            buffer.Clear();
+                            currentBatchSizeBytes = currentDocumentSize;
+                        }
+
+                        buffer.Add(document);
+                    }
+                }
             }
 
-            if (buffer.Count == DocumentBatchSize || (documents.IsCompleted && buffer.Count > 0))   // actually this should also check the size of the batch, it should be max 1000 items or 16 MB
+            if (buffer.Count == maxBatchCount || (documents.IsCompleted && buffer.Count > 0))   // actually this should also check the size of the batch, it should be max 1000 items or 16 MB
             {
                 var taskId = Guid.NewGuid();
+                await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
                 sendTasks.TryAdd(taskId, UploadBatchAsync(buffer.ToImmutableList(), taskId));
                 buffer.Clear();
+                currentBatchSizeBytes = 0;
             }
         }
 

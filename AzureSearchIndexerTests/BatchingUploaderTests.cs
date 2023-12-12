@@ -28,7 +28,7 @@ public class BatchingUploaderTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(documents.Count, Is.EqualTo(0));
+            Assert.That(documents, Is.Empty);
             Assert.That(uploadTask.Result.UploadCount, Is.EqualTo(3));
         });
     }
@@ -54,7 +54,7 @@ public class BatchingUploaderTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(documents.Count, Is.EqualTo(0));
+            Assert.That(documents, Is.Empty);
             Assert.That(uploadTask.Result.UploadCount, Is.EqualTo(4));
         });
     }
@@ -77,8 +77,36 @@ public class BatchingUploaderTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(documents.Count, Is.EqualTo(0));
+            Assert.That(documents, Is.Empty);
             Assert.That(uploadTask.Result.UploadCount, Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public async Task TestBatchingUploaderBatchSizeBytes()
+    {
+        var searchClient = Substitute.For<SearchClient>();
+        var fakeSize = await Utils.GetJsonLengthAsync(Substitute.For<PathIndexModel>()).ConfigureAwait(false) + 1;
+        var uploader = new BatchingUploader(NullLogger<BatchingUploader>.Instance, 2, 2, fakeSize);
+
+        var documents = new BlockingCollection<PathIndexModel>
+        {
+            Substitute.For<PathIndexModel>(),
+            Substitute.For<PathIndexModel>(),
+            Substitute.For<PathIndexModel>(),
+            Substitute.For<PathIndexModel>(),
+        };
+
+        documents.CompleteAdding();
+
+        var uploadTask = uploader.UploadBatchesAsync(documents, searchClient);
+        await uploadTask;
+
+        Assert.Multiple(() =>
+        {
+            // todo this should assert that the searchclient uploaddocuments has been called 4 times as well..
+            Assert.That(documents, Is.Empty);
+            Assert.That(uploadTask.Result.UploadCount, Is.EqualTo(4));
         });
     }
 }
