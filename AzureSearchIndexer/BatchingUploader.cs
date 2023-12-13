@@ -51,35 +51,33 @@ public record BatchingUploader(ILogger logger, int maxUploadThreads, int maxBatc
 
         async Task CreateBatchAsync()
         {
-            var taskId = Guid.NewGuid();
             await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+            var taskId = Guid.NewGuid();
             sendTasks.TryAdd(taskId, UploadBatchAsync(buffer.Select(o => o.document).ToImmutableList(), taskId));
             buffer.Clear();
         }
 
         await using var timer = new Timer(s => { logger.LogInformation("Uploaded documents: created: {created}, modified: {modified}, failed: {failed}", createdCount, modifiedCount, failedCount); }, null, 3000, 3000);
 
-        while (!documents.IsCompleted)
+        while (documents.TryTake(out var document, -1, cancellationToken) && document != null)
         {
-            if (documents.TryTake(out var document, -1, cancellationToken) && document != null)  // todo dahek, why would document be null here?
+            var currentDocumentSizeBytes = await Utils.GetJsonLengthAsync(document, token: cancellationToken).ConfigureAwait(false);
+
+            if (currentDocumentSizeBytes > maxBatchSizeBytes)
             {
-                var currentDocumentSizeBytes = await Utils.GetJsonLengthAsync(document, token: cancellationToken).ConfigureAwait(false);
-
-                if (currentDocumentSizeBytes > maxBatchSizeBytes)
-                {
-                    Interlocked.Increment(ref ignoredTooLargeCount);
-                    logger.LogWarning("Found document larger than max batch size: {path}", "uh.. yea"); // todo ugh, do we really want to have the path here as well so we can log the failing documents... guess so
-                }
-                else
-                {
-                    if (buffer.Sum(o => o.size) + currentDocumentSizeBytes > maxBatchSizeBytes) // so wasteful... anyway
-                    {
-                        await CreateBatchAsync().ConfigureAwait(false);
-                    }
-
-                    buffer.Add((currentDocumentSizeBytes, document));
-                }
+                Interlocked.Increment(ref ignoredTooLargeCount);
+                logger.LogWarning("Found document larger than max batch size: {path}", "uh.. yea"); // todo ugh, do we really want to have the path here as well so we can log the failing documents... guess so
             }
+            else
+            {
+                if (buffer.Sum(o => o.size) + currentDocumentSizeBytes > maxBatchSizeBytes) // so wasteful... anyway
+                {
+                    await CreateBatchAsync().ConfigureAwait(false);
+                }
+
+                buffer.Add((currentDocumentSizeBytes, document));
+            }
+
 
             if (buffer.Count == maxBatchCount || (documents.IsCompleted && buffer.Count > 0))   // actually this should also check the size of the batch, it should be max 1000 items or 16 MB
             {

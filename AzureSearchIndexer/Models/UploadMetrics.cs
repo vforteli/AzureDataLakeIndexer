@@ -1,3 +1,3 @@
 ﻿namespace AzureSearchIndexer;
 
-public record UploadMetrics(int ProcessedCount, int FailedCoumt, int CreatedCount, int ModifiedCount, int FailedTooLargeCount);
+public record UploadMetrics(int ProcessedCount, int FailedCount, int CreatedCount, int ModifiedCount, int FailedTooLargeCount);

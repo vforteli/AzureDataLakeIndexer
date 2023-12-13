@@ -39,9 +39,9 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
         {
             ReadCount = readDocumentsTask.Result.ReadCount,
             ReadFailedCount = readDocumentsTask.Result.ReadFailedCount,
-            ProcessedCount = uploadDocumentsTask.Result.FailedCoumt,
+            ProcessedCount = uploadDocumentsTask.Result.FailedCount,
             UploadCreatedCount = uploadDocumentsTask.Result.CreatedCount,
-            UploadFailedCount = uploadDocumentsTask.Result.FailedCoumt,
+            UploadFailedCount = uploadDocumentsTask.Result.FailedCount,
             UploadFailedTooLargeCount = uploadDocumentsTask.Result.FailedTooLargeCount,
             UploadModifiedCount = uploadDocumentsTask.Result.ModifiedCount,
         };
