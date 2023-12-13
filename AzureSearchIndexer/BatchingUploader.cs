@@ -15,10 +15,8 @@ public record BatchingUploader(ILogger logger, int maxUploadThreads, int maxBatc
         var createdCount = 0;
         var modifiedCount = 0;
 
-        long currentBatchSizeBytes = 0;
-
         var sendTasks = new ConcurrentDictionary<Guid, Task>();
-        var buffer = new List<TIndex>(maxBatchCount);
+        var buffer = new List<(long size, TIndex document)>(maxBatchCount);
 
         using var semaphore = new SemaphoreSlim(maxUploadThreads, maxUploadThreads);
 
@@ -27,7 +25,7 @@ public record BatchingUploader(ILogger logger, int maxUploadThreads, int maxBatc
             try
             {
                 var currentCount = Interlocked.Add(ref processedCount, batch.Count);
-                logger.LogInformation("Sending batch with {bufferCount} documents, size: {size}, total: {currentCount}", batch.Count, currentBatchSizeBytes, currentCount);
+                logger.LogInformation("Sending batch with {bufferCount} documents, total: {currentCount}", batch.Count, currentCount);
 
                 // the search client already has built in retry logic... so no point adding some here
                 var response = await searchClient.UploadDocumentsAsync(batch, cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -55,38 +53,31 @@ public record BatchingUploader(ILogger logger, int maxUploadThreads, int maxBatc
         {
             var taskId = Guid.NewGuid();
             await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-            sendTasks.TryAdd(taskId, UploadBatchAsync(buffer.ToImmutableList(), taskId));
+            sendTasks.TryAdd(taskId, UploadBatchAsync(buffer.Select(o => o.document).ToImmutableList(), taskId));
             buffer.Clear();
-            currentBatchSizeBytes = 0;
         }
 
         await using var timer = new Timer(s => { logger.LogInformation("Uploaded documents: created: {created}, modified: {modified}, failed: {failed}", createdCount, modifiedCount, failedCount); }, null, 3000, 3000);
 
         while (!documents.IsCompleted)
         {
-            if (documents.TryTake(out var document, -1, cancellationToken))
+            if (documents.TryTake(out var document, -1, cancellationToken) && document != null)  // todo dahek, why would document be null here?
             {
-                if (document != null)  // todo dahek, why would document be null here?
+                var currentDocumentSizeBytes = await Utils.GetJsonLengthAsync(document, token: cancellationToken).ConfigureAwait(false);
+
+                if (currentDocumentSizeBytes > maxBatchSizeBytes)
                 {
-                    var currentDocumentSizeBytes = await Utils.GetJsonLengthAsync(document, token: cancellationToken).ConfigureAwait(false);
-
-                    if (currentDocumentSizeBytes > maxBatchSizeBytes)
+                    Interlocked.Increment(ref ignoredTooLargeCount);
+                    logger.LogWarning("Found document larger than max batch size: {path}", "uh.. yea"); // todo ugh, do we really want to have the path here as well so we can log the failing documents... guess so
+                }
+                else
+                {
+                    if (buffer.Sum(o => o.size) + currentDocumentSizeBytes > maxBatchSizeBytes) // so wasteful... anyway
                     {
-                        Interlocked.Increment(ref ignoredTooLargeCount);
-                        logger.LogWarning("Found document larger than max batch size: {path}", "uh.. yea"); // todo ugh, do we really want to have the path here as well so we can log the failing documents... guess so
+                        await CreateBatchAsync().ConfigureAwait(false);
                     }
-                    else
-                    {
-                        currentBatchSizeBytes += currentDocumentSizeBytes;
 
-                        if (currentBatchSizeBytes > maxBatchSizeBytes)
-                        {
-                            await CreateBatchAsync().ConfigureAwait(false);
-                            currentBatchSizeBytes = currentDocumentSizeBytes;   // set this here since we will add the deferred document to the next batch
-                        }
-
-                        buffer.Add(document);
-                    }
+                    buffer.Add((currentDocumentSizeBytes, document));
                 }
             }
 

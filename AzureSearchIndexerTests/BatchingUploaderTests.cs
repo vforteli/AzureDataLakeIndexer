@@ -28,6 +28,7 @@ public class BatchingUploaderTests
 
         Assert.Multiple(() =>
         {
+            searchClient.ReceivedWithAnyArgs(2).UploadDocumentsAsync(Arg.Any<IEnumerable<PathIndexModel>>());
             Assert.That(documents, Is.Empty);
             Assert.That(uploadTask.Result.ProcessedCount, Is.EqualTo(3));
         });
@@ -54,6 +55,7 @@ public class BatchingUploaderTests
 
         Assert.Multiple(() =>
         {
+            searchClient.ReceivedWithAnyArgs(2).UploadDocumentsAsync(Arg.Any<IEnumerable<PathIndexModel>>());
             Assert.That(documents, Is.Empty);
             Assert.That(uploadTask.Result.ProcessedCount, Is.EqualTo(4));
         });
@@ -77,6 +79,7 @@ public class BatchingUploaderTests
 
         Assert.Multiple(() =>
         {
+            searchClient.ReceivedWithAnyArgs(1).UploadDocumentsAsync(Arg.Any<IEnumerable<PathIndexModel>>());
             Assert.That(documents, Is.Empty);
             Assert.That(uploadTask.Result.ProcessedCount, Is.EqualTo(1));
         });
