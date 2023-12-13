@@ -22,7 +22,7 @@ public record BatchingUploader(ILogger logger, int maxUploadThreads, int maxBatc
 
         using var semaphore = new SemaphoreSlim(maxUploadThreads, maxUploadThreads);
 
-        Task UploadBatchAsync(IImmutableList<TIndex> batch, Guid taskId) => Task.Run(async () =>
+        async Task UploadBatchAsync(IImmutableList<TIndex> batch, Guid taskId)
         {
             try
             {
@@ -49,7 +49,16 @@ public record BatchingUploader(ILogger logger, int maxUploadThreads, int maxBatc
                 sendTasks.TryRemove(taskId, out _);
                 semaphore.Release();
             }
-        }, cancellationToken);
+        };
+
+        async Task CreateBatchAsync()
+        {
+            var taskId = Guid.NewGuid();
+            await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+            sendTasks.TryAdd(taskId, UploadBatchAsync(buffer.ToImmutableList(), taskId));
+            buffer.Clear();
+            currentBatchSizeBytes = 0;
+        }
 
         await using var timer = new Timer(s => { logger.LogInformation("Uploaded documents: created: {created}, modified: {modified}, failed: {failed}", createdCount, modifiedCount, failedCount); }, null, 3000, 3000);
 
@@ -72,11 +81,8 @@ public record BatchingUploader(ILogger logger, int maxUploadThreads, int maxBatc
 
                         if (currentBatchSizeBytes > maxBatchSizeBytes)
                         {
-                            var taskId = Guid.NewGuid();
-                            await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-                            sendTasks.TryAdd(taskId, UploadBatchAsync(buffer.ToImmutableList(), taskId));
-                            buffer.Clear();
-                            currentBatchSizeBytes = currentDocumentSizeBytes;
+                            await CreateBatchAsync().ConfigureAwait(false);
+                            currentBatchSizeBytes = currentDocumentSizeBytes;   // set this here since we will add the deferred document to the next batch
                         }
 
                         buffer.Add(document);
@@ -86,11 +92,7 @@ public record BatchingUploader(ILogger logger, int maxUploadThreads, int maxBatc
 
             if (buffer.Count == maxBatchCount || (documents.IsCompleted && buffer.Count > 0))   // actually this should also check the size of the batch, it should be max 1000 items or 16 MB
             {
-                var taskId = Guid.NewGuid();
-                await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-                sendTasks.TryAdd(taskId, UploadBatchAsync(buffer.ToImmutableList(), taskId));
-                buffer.Clear();
-                currentBatchSizeBytes = 0;
+                await CreateBatchAsync().ConfigureAwait(false);
             }
         }
 

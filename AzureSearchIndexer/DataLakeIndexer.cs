@@ -10,40 +10,65 @@ namespace AzureSearchIndexer;
 
 public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer> logger, DatalakeIndexerOptions options)
 {
+    private readonly BatchingUploader batchingUploader = new BatchingUploader(logger, options.MaxUploadThreads, options.DocumentBatchSize, options.MaxDocumentBatchSizeBytes);
+
+
     /// <summary>
     /// Run document indexer with a function for mapping 
     /// </summary>
-    public async Task<IndexerRunMetrics> RunDocumentIndexerOnPathsAsync<TIndex>(DataLakeServiceClient dataLakeServiceClient, IAsyncEnumerable<PathIndexModel> paths, Func<PathIndexModel, FileDownloadInfo, Task<TIndex?>> func, CancellationToken cancellationToken)
+    public async Task<IndexerRunMetrics> RunDocumentIndexerOnPathsAsync<TIndex>(
+        DataLakeServiceClient dataLakeServiceClient,
+        IAsyncEnumerable<PathIndexModel> paths,
+        Func<PathIndexModel, FileDownloadInfo, Task<TIndex?>> func,
+        CancellationToken cancellationToken)
     {
         var pathsBuffer = new BlockingCollection<PathIndexModel>(options.DocumentBatchSize * options.MaxUploadThreads * 2);
-
-        var listPathsTask = Task.Run(async () =>
-        {
-            await foreach (var path in paths)
-            {
-                pathsBuffer.Add(path);
-            }
-
-            pathsBuffer.CompleteAdding();
-        }, cancellationToken);
-
         var documents = new BlockingCollection<TIndex>(options.DocumentBatchSize * (options.MaxUploadThreads + 2));
-        var batchingUploader = new BatchingUploader(logger, options.MaxUploadThreads, options.DocumentBatchSize, options.MaxDocumentBatchSizeBytes);
 
-        var documentReadCount = 0;
-        var documentReadFailedCount = 0;
+        var listPathsTask = ReadPathsAsync(paths, pathsBuffer, cancellationToken);
+        var readDocumentsTask = ReadDocumentsAsync(options, dataLakeServiceClient, func, pathsBuffer, documents, cancellationToken);
+        var uploadDocumentsTask = batchingUploader.UploadBatchesAsync(documents, searchClient, cancellationToken);
 
         var stopwatch = Stopwatch.StartNew();
 
-        var readDocumentsTask = Task.Run(async () =>
-        {
-            await using var timer = new Timer(s => { logger.LogInformation("Read {documentsReadCount} documents... {dps} fps", documentReadCount, documentReadCount / (stopwatch.ElapsedMilliseconds / 1000f)); }, null, 3000, 3000);
+        await Task.WhenAll(listPathsTask, readDocumentsTask, uploadDocumentsTask).ConfigureAwait(false);
 
+        logger.LogInformation("Indexing done, took {elapsed}", stopwatch.Elapsed);
+
+        return new IndexerRunMetrics
+        {
+            ReadCount = readDocumentsTask.Result.ReadCount,
+            ReadFailedCount = readDocumentsTask.Result.ReadFailedCount,
+            ProcessedCount = uploadDocumentsTask.Result.FailedCoumt,
+            UploadCreatedCount = uploadDocumentsTask.Result.CreatedCount,
+            UploadFailedCount = uploadDocumentsTask.Result.FailedCoumt,
+            UploadFailedTooLargeCount = uploadDocumentsTask.Result.FailedTooLargeCount,
+            UploadModifiedCount = uploadDocumentsTask.Result.ModifiedCount,
+        };
+    }
+
+
+    /// <summary>
+    /// Read documents from datalake into buffer
+    /// </summary>   
+    internal Task<ReadDocumentsMetrics> ReadDocumentsAsync<TIndex>(
+        DatalakeIndexerOptions options,
+        DataLakeServiceClient dataLakeServiceClient,
+        Func<PathIndexModel, FileDownloadInfo, Task<TIndex?>> func,
+        BlockingCollection<PathIndexModel> pathsBuffer,
+        BlockingCollection<TIndex> documents,
+        CancellationToken cancellationToken) => Task.Run(async () =>
+        {
+            var documentReadCount = 0;
+            var documentReadFailedCount = 0;
             var readTasks = new ConcurrentDictionary<Guid, Task>();
+            var stopwatch = Stopwatch.StartNew();
+
+            await using var timer = new Timer(s => { logger.LogInformation("Read {documentsReadCount} documents... {dps} fps", documentReadCount, documentReadCount / (stopwatch.ElapsedMilliseconds / 1000f)); }, null, 3000, 3000);
 
             try
             {
-                using var semaphore = new SemaphoreSlim(options.MaxReatThreads, options.MaxReatThreads);
+                using var semaphore = new SemaphoreSlim(options.MaxReadThreads, options.MaxReadThreads);
 
                 while (pathsBuffer.TryTake(out var path, Timeout.Infinite, cancellationToken))
                 {
@@ -88,22 +113,26 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
             {
                 documents.CompleteAdding();
             }
+
+            return new ReadDocumentsMetrics
+            {
+                ReadCount = documentReadCount,
+                ReadFailedCount = documentReadFailedCount,
+            };
         }, cancellationToken);
 
-        var uploadDocumentsTask = batchingUploader.UploadBatchesAsync(documents, searchClient, cancellationToken);
 
-        await Task.WhenAll(readDocumentsTask, uploadDocumentsTask).ConfigureAwait(false);
-        logger.LogInformation("Indexing done, took {elapsed}", stopwatch.Elapsed);
-
-        return new IndexerRunMetrics
+    /// <summary>
+    /// Fill BlockingCollection with paths
+    /// </summary>   
+    internal static Task ReadPathsAsync(IAsyncEnumerable<PathIndexModel> paths, BlockingCollection<PathIndexModel> pathsBuffer, CancellationToken cancellationToken) =>
+        Task.Run(async () =>
         {
-            ReadCount = documentReadCount,
-            ReadFailedCount = documentReadFailedCount,
-            ProcessedCount = uploadDocumentsTask.Result.FailedCoumt,
-            UploadCreatedCount = uploadDocumentsTask.Result.CreatedCount,
-            UploadFailedCount = uploadDocumentsTask.Result.FailedCoumt,
-            UploadFailedTooLargeCount = uploadDocumentsTask.Result.FailedTooLargeCount,
-            UploadModifiedCount = uploadDocumentsTask.Result.ModifiedCount,
-        };
-    }
+            await foreach (var path in paths)
+            {
+                pathsBuffer.Add(path);
+            }
+
+            pathsBuffer.CompleteAdding();
+        }, cancellationToken);
 }
