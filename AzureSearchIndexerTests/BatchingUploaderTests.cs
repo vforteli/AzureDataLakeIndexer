@@ -29,7 +29,7 @@ public class BatchingUploaderTests
         Assert.Multiple(() =>
         {
             Assert.That(documents, Is.Empty);
-            Assert.That(uploadTask.Result.UploadCount, Is.EqualTo(3));
+            Assert.That(uploadTask.Result.ProcessedCount, Is.EqualTo(3));
         });
     }
 
@@ -55,7 +55,7 @@ public class BatchingUploaderTests
         Assert.Multiple(() =>
         {
             Assert.That(documents, Is.Empty);
-            Assert.That(uploadTask.Result.UploadCount, Is.EqualTo(4));
+            Assert.That(uploadTask.Result.ProcessedCount, Is.EqualTo(4));
         });
     }
 
@@ -78,7 +78,7 @@ public class BatchingUploaderTests
         Assert.Multiple(() =>
         {
             Assert.That(documents, Is.Empty);
-            Assert.That(uploadTask.Result.UploadCount, Is.EqualTo(1));
+            Assert.That(uploadTask.Result.ProcessedCount, Is.EqualTo(1));
         });
     }
 
@@ -104,9 +104,9 @@ public class BatchingUploaderTests
 
         Assert.Multiple(() =>
         {
-            // todo this should assert that the searchclient uploaddocuments has been called 4 times as well..
+            searchClient.ReceivedWithAnyArgs(4).UploadDocumentsAsync(Arg.Any<IEnumerable<PathIndexModel>>());
             Assert.That(documents, Is.Empty);
-            Assert.That(uploadTask.Result.UploadCount, Is.EqualTo(4));
+            Assert.That(uploadTask.Result.ProcessedCount, Is.EqualTo(4));
         });
     }
 }

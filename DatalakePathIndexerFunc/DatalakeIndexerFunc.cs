@@ -54,13 +54,13 @@ public class DatalakePathIndexer(ILoggerFactory loggerFactory, PathIndexClient p
 
         _logger.LogInformation(
             "Indexer done, documents read: {created}, failed: {failed}",
-            indexerResult.DocumentReadCount,
-            indexerResult.DocumentReadFailedCount);
+            indexerResult.ReadCount,
+            indexerResult.ReadFailedCount);
 
         _logger.LogInformation(
             "Indexer done, created: {created}, modified: {modified}, failed: {failed}",
-            indexerResult.DocumentUploadCreatedCount,
-            indexerResult.DocumentUploadModifiedCount,
-            indexerResult.DocumentUploadFailedCount);
+            indexerResult.UploadCreatedCount,
+            indexerResult.UploadModifiedCount,
+            indexerResult.UploadFailedCount);
     }
 }

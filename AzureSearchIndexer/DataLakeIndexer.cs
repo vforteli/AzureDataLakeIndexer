@@ -8,25 +8,14 @@ using Microsoft.Extensions.Logging;
 
 namespace AzureSearchIndexer;
 
-public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer> logger)
+public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer> logger, DatalakeIndexerOptions options)
 {
-    private const int MaxReadThreads = 128;
-    private const int MaxUploadThreads = 4; // this should possibly be set to the number of search units? have to check
-    private const int DocumentBatchSize = 1000;    // max value in azure ai search atm is 32000, however higher values do not seem to yield better performance
-
-    /// <summary>
-    /// Max size of batch is 64MB
-    /// This is the size of the json serialized batch, so the contents have to be serialized first to get the real size
-    /// </summary>
-    private const long MaxBatchSizeBytes = 63 * 1024 * 1024;
-
-
     /// <summary>
     /// Run document indexer with a function for mapping 
     /// </summary>
     public async Task<IndexerRunMetrics> RunDocumentIndexerOnPathsAsync<TIndex>(DataLakeServiceClient dataLakeServiceClient, IAsyncEnumerable<PathIndexModel> paths, Func<PathIndexModel, FileDownloadInfo, Task<TIndex?>> func, CancellationToken cancellationToken)
     {
-        var pathsBuffer = new BlockingCollection<PathIndexModel>(DocumentBatchSize * MaxUploadThreads * 2);
+        var pathsBuffer = new BlockingCollection<PathIndexModel>(options.DocumentBatchSize * options.MaxUploadThreads * 2);
 
         var listPathsTask = Task.Run(async () =>
         {
@@ -38,8 +27,8 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
             pathsBuffer.CompleteAdding();
         }, cancellationToken);
 
-        var documents = new BlockingCollection<TIndex>(DocumentBatchSize * (MaxUploadThreads + 2));
-        var batchingUploader = new BatchingUploader(logger, MaxUploadThreads, DocumentBatchSize, MaxBatchSizeBytes);
+        var documents = new BlockingCollection<TIndex>(options.DocumentBatchSize * (options.MaxUploadThreads + 2));
+        var batchingUploader = new BatchingUploader(logger, options.MaxUploadThreads, options.DocumentBatchSize, options.MaxDocumentBatchSizeBytes);
 
         var documentReadCount = 0;
         var documentReadFailedCount = 0;
@@ -54,7 +43,7 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
 
             try
             {
-                using var semaphore = new SemaphoreSlim(MaxReadThreads, MaxReadThreads);
+                using var semaphore = new SemaphoreSlim(options.MaxReatThreads, options.MaxReatThreads);
 
                 while (pathsBuffer.TryTake(out var path, Timeout.Infinite, cancellationToken))
                 {
@@ -108,12 +97,13 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
 
         return new IndexerRunMetrics
         {
-            DocumentReadCount = documentReadCount,
-            DocumentReadFailedCount = documentReadFailedCount,
-            DocumentUploadCount = uploadDocumentsTask.Result.UploadCount,
-            DocumentUploadCreatedCount = uploadDocumentsTask.Result.CreatedCount,
-            DocumentUploadFailedCount = uploadDocumentsTask.Result.FailedCoumt,
-            DocumentUploadModifiedCount = uploadDocumentsTask.Result.ModifiedCount,
+            ReadCount = documentReadCount,
+            ReadFailedCount = documentReadFailedCount,
+            ProcessedCount = uploadDocumentsTask.Result.FailedCoumt,
+            UploadCreatedCount = uploadDocumentsTask.Result.CreatedCount,
+            UploadFailedCount = uploadDocumentsTask.Result.FailedCoumt,
+            UploadFailedTooLargeCount = uploadDocumentsTask.Result.FailedTooLargeCount,
+            UploadModifiedCount = uploadDocumentsTask.Result.ModifiedCount,
         };
     }
 }

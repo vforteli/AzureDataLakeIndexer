@@ -18,6 +18,6 @@ new HostBuilder()
 
         services.AddSingleton(new DataLakeServiceClient(new Uri(datalakeConnectionString), new DefaultAzureCredential()));
         services.AddSingleton(o => new PathIndexClient(new SearchClient(new Uri(azureSearchServiceUri), "path-created-index", new DefaultAzureCredential()), o.GetRequiredService<ILogger<PathIndexClient>>()));
-        services.AddSingleton(o => new DataLakeIndexer(new SearchClient(new Uri(azureSearchServiceUri), "someindex-large", new DefaultAzureCredential()), o.GetRequiredService<ILogger<DataLakeIndexer>>()));
+        services.AddSingleton(o => new DataLakeIndexer(new SearchClient(new Uri(azureSearchServiceUri), "someindex-large", new DefaultAzureCredential()), o.GetRequiredService<ILogger<DataLakeIndexer>>(), new DatalakeIndexerOptions()));
     })
     .Build().Run();

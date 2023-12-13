@@ -5,17 +5,15 @@ using Microsoft.Extensions.Logging;
 
 namespace AzureSearchIndexer;
 
-public record UploadMetrics(int UploadCount, int FailedCoumt, int CreatedCount, int ModifiedCount);
-
-
-public record BatchingUploader(ILogger logger, int maxUploadThreads, int maxBatchCount, long maxBatchSizeBytes = 64 * 1024 * 1024)
+public record BatchingUploader(ILogger logger, int maxUploadThreads, int maxBatchCount, long maxBatchSizeBytes = 63 * 1024 * 1024)
 {
     public virtual async Task<UploadMetrics> UploadBatchesAsync<TIndex>(BlockingCollection<TIndex> documents, SearchClient searchClient, CancellationToken cancellationToken = default)
     {
-        var documentUploadCount = 0;
-        var documentUploadFailedCount = 0;
-        var documentUploadCreatedCount = 0;
-        var documentUploadModifiedCount = 0;
+        var processedCount = 0;
+        var failedCount = 0;
+        var ignoredTooLargeCount = 0;
+        var createdCount = 0;
+        var modifiedCount = 0;
 
         long currentBatchSizeBytes = 0;
 
@@ -28,21 +26,22 @@ public record BatchingUploader(ILogger logger, int maxUploadThreads, int maxBatc
         {
             try
             {
-                var currentCount = Interlocked.Add(ref documentUploadCount, batch.Count);
+                var currentCount = Interlocked.Add(ref processedCount, batch.Count);
                 logger.LogInformation("Sending batch with {bufferCount} documents, size: {size}, total: {currentCount}", batch.Count, currentBatchSizeBytes, currentCount);
 
-                // todo handle retries? failed documents?
+                // the search client already has built in retry logic... so no point adding some here
                 var response = await searchClient.UploadDocumentsAsync(batch, cancellationToken: cancellationToken).ConfigureAwait(false);
 
-                Interlocked.Add(ref documentUploadCreatedCount, response.Value.Results.Count(o => o.Status == 201));
-                Interlocked.Add(ref documentUploadModifiedCount, response.Value.Results.Count(o => o.Status == 200));
-                Interlocked.Add(ref documentUploadFailedCount, response.Value.Results.Count(o => o.Status >= 400));
+                Interlocked.Add(ref createdCount, response.Value.Results.Count(o => o.Status == 201));
+                Interlocked.Add(ref modifiedCount, response.Value.Results.Count(o => o.Status == 200));
+                Interlocked.Add(ref failedCount, response.Value.Results.Count(o => o.Status >= 400));
 
                 logger.LogInformation("Status: {status} for batch at {currentCount}", response.GetRawResponse().Status, currentCount);
             }
             catch (Exception ex)
             {
-                Interlocked.Add(ref documentUploadFailedCount, batch.Count);
+                // if we get here we will just have to assume the whole batch failed...
+                Interlocked.Add(ref failedCount, batch.Count);
                 logger.LogError(ex, $"Uh oh, sending batch failed...");
             }
             finally
@@ -52,24 +51,24 @@ public record BatchingUploader(ILogger logger, int maxUploadThreads, int maxBatc
             }
         }, cancellationToken);
 
-        await using var timer = new Timer(s => { logger.LogInformation("Uploaded documents: created: {created}, modified: {modified}, failed: {failed}", documentUploadCreatedCount, documentUploadModifiedCount, documentUploadFailedCount); }, null, 3000, 3000);
+        await using var timer = new Timer(s => { logger.LogInformation("Uploaded documents: created: {created}, modified: {modified}, failed: {failed}", createdCount, modifiedCount, failedCount); }, null, 3000, 3000);
 
         while (!documents.IsCompleted)
         {
             if (documents.TryTake(out var document, -1, cancellationToken))
             {
-                if (document != null)  // todo dahek, why is would document be null here?
+                if (document != null)  // todo dahek, why would document be null here?
                 {
-                    var currentDocumentSize = await Utils.GetJsonLengthAsync(document, token: cancellationToken).ConfigureAwait(false);
+                    var currentDocumentSizeBytes = await Utils.GetJsonLengthAsync(document, token: cancellationToken).ConfigureAwait(false);
 
-                    if (currentDocumentSize > maxBatchSizeBytes)
+                    if (currentDocumentSizeBytes > maxBatchSizeBytes)
                     {
-                        Interlocked.Increment(ref documentUploadFailedCount);
+                        Interlocked.Increment(ref ignoredTooLargeCount);
                         logger.LogWarning("Found document larger than max batch size: {path}", "uh.. yea"); // todo ugh, do we really want to have the path here as well so we can log the failing documents... guess so
                     }
                     else
                     {
-                        currentBatchSizeBytes += currentDocumentSize;
+                        currentBatchSizeBytes += currentDocumentSizeBytes;
 
                         if (currentBatchSizeBytes > maxBatchSizeBytes)
                         {
@@ -77,7 +76,7 @@ public record BatchingUploader(ILogger logger, int maxUploadThreads, int maxBatc
                             await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
                             sendTasks.TryAdd(taskId, UploadBatchAsync(buffer.ToImmutableList(), taskId));
                             buffer.Clear();
-                            currentBatchSizeBytes = currentDocumentSize;
+                            currentBatchSizeBytes = currentDocumentSizeBytes;
                         }
 
                         buffer.Add(document);
@@ -97,6 +96,6 @@ public record BatchingUploader(ILogger logger, int maxUploadThreads, int maxBatc
 
         await Task.WhenAll(sendTasks.Select(o => o.Value)).ConfigureAwait(false);
 
-        return new UploadMetrics(documentUploadCount, documentUploadFailedCount, documentUploadCreatedCount, documentUploadModifiedCount);
+        return new UploadMetrics(processedCount, failedCount, createdCount, modifiedCount, ignoredTooLargeCount);
     }
 }

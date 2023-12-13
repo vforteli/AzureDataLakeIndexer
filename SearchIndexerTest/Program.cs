@@ -49,7 +49,7 @@ Console.CancelKeyPress += (s, e) =>
 var datalakeServiceClient = new DataLakeServiceClient(datalakeConnectionString);
 
 var pathIndexClient = new PathIndexClient(new SearchClient(searchServiceUri, pathCreatedIndexName, searchServiceCredendial), loggerFactory.CreateLogger<PathIndexClient>());
-var indexer = new DataLakeIndexer(new SearchClient(searchServiceUri, indexName, searchServiceCredendial), loggerFactory.CreateLogger<DataLakeIndexer>());
+var indexer = new DataLakeIndexer(new SearchClient(searchServiceUri, indexName, searchServiceCredendial), loggerFactory.CreateLogger<DataLakeIndexer>(), new DatalakeIndexerOptions());
 
 
 // setup datalake stuff
