@@ -23,8 +23,7 @@ public class PathIndexClient(SearchClient pathIndexSearchClient, ILogger<PathInd
     {
         try
         {
-            // todo retry if some documents fail?
-            var response = await pathIndexSearchClient.UploadDocumentsAsync(paths).ConfigureAwait(false);
+            var response = await pathIndexSearchClient.MergeOrUploadDocumentsAsync(paths).ConfigureAwait(false);
 
             var result = new UpsertPathsResult
             {

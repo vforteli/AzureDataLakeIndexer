@@ -27,8 +27,10 @@ public record BatchingUploader(ILogger logger, int maxUploadThreads, int maxBatc
                 var currentCount = Interlocked.Add(ref processedCount, batch.Count);
                 logger.LogInformation("Sending batch with {bufferCount} documents, total: {currentCount}", batch.Count, currentCount);
 
-                // the search client already has built in retry logic... so no point adding some here
-                var response = await searchClient.UploadDocumentsAsync(batch, cancellationToken: cancellationToken).ConfigureAwait(false);
+                // During ingestion the search services uses the available space as a buffer, and then compacts the index after some time
+                // Using MergeOrUpload when possible seems to decrease the needed buffer size in azuree search when ingesting data
+                // So, unless documents really must be completely replaced, use MergeOrUpload
+                var response = await searchClient.MergeOrUploadDocumentsAsync(batch, cancellationToken: cancellationToken).ConfigureAwait(false);
 
                 Interlocked.Add(ref createdCount, response.Value.Results.Count(o => o.Status == 201));
                 Interlocked.Add(ref modifiedCount, response.Value.Results.Count(o => o.Status == 200));
