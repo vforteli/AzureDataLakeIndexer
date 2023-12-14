@@ -49,7 +49,7 @@ Console.CancelKeyPress += (s, e) =>
 var datalakeServiceClient = new DataLakeServiceClient(datalakeConnectionString);
 
 var pathIndexClient = new PathIndexClient(new SearchClient(searchServiceUri, pathCreatedIndexName, searchServiceCredendial), loggerFactory.CreateLogger<PathIndexClient>());
-var indexer = new DataLakeIndexer(new SearchClient(searchServiceUri, indexName, searchServiceCredendial), loggerFactory.CreateLogger<DataLakeIndexer>());
+var indexer = new DataLakeIndexer(new SearchClient(searchServiceUri, indexName, searchServiceCredendial), loggerFactory.CreateLogger<DataLakeIndexer>(), new DatalakeIndexerOptions());
 
 
 // setup datalake stuff
@@ -73,7 +73,7 @@ await largeSourceFileSystem.CreateIfNotExistsAsync();
 // testing filterint with larger index...
 //await pathIndexClient.UploadTestPathsAsync("doesntexist", DataLakeWriter.GeneratePaths(1000, 100, 100));
 
-await pathIndexClient.RebuildPathsIndexAsync(largeSourceFileSystem.ListPathsParallelAsync("/"), largeSourceFileSystem.Name);
+// await pathIndexClient.RebuildPathsIndexAsync(largeSourceFileSystem.ListPathsParallelAsync("/"), largeSourceFileSystem.Name);
 
 // return;
 
@@ -86,7 +86,7 @@ Console.WriteLine("Running indexer...");
 var options = new ListPathsOptions
 {
     FromLastModified = new DateTimeOffset(2023, 9, 28, 5, 0, 0, TimeSpan.Zero),
-    Filter = "search.ismatch('partition_0%2fcustomer_2*')",
+    Filter = "search.ismatch('partition*')",
     // Filter = "filesystem eq 'stuff-large-files'"
 };
 
@@ -108,6 +108,9 @@ Func<PathIndexModel, FileDownloadInfo, Task<SomeOtherIndexModel?>> somefunc = as
         : null;
 };
 
+
+Console.WriteLine("Press enter to start...");
+Console.ReadLine();
 var indexerResult = await indexer.RunDocumentIndexerOnPathsAsync(datalakeServiceClient, pathIndexClient.ListPathsAsync(options), somefunc, cancellationTokenSource.Token);
 
 Console.WriteLine(JsonSerializer.Serialize(indexerResult));

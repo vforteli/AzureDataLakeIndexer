@@ -1,4 +1,3 @@
-
 using Azure;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Models;
@@ -31,7 +30,7 @@ public class Tests
         response.Value.Returns(SearchModelFactory.IndexDocumentsResult(new List<IndexingResult>()));
 
         var searchClient = Substitute.For<SearchClient>();
-        searchClient.UploadDocumentsAsync(Arg.Any<IEnumerable<PathIndexModel>>()).Returns(response);
+        searchClient.MergeOrUploadDocumentsAsync(Arg.Any<IEnumerable<PathIndexModel>>()).Returns(response);
 
         var paths = Enumerable.Range(0, 1000)
             .Select(o => DataLakeModelFactory.PathItem("somepath", false, default, default, default, default, default, default, default, default, default))
@@ -53,7 +52,7 @@ public class Tests
         response.Value.Returns(SearchModelFactory.IndexDocumentsResult(new List<IndexingResult>()));
 
         var searchClient = Substitute.For<SearchClient>();
-        searchClient.UploadDocumentsAsync(Arg.Any<IEnumerable<PathIndexModel>>()).Returns(response);
+        searchClient.MergeOrUploadDocumentsAsync(Arg.Any<IEnumerable<PathIndexModel>>()).Returns(response);
 
         var paths = Enumerable.Range(0, 1001)
             .Select(o => DataLakeModelFactory.PathItem("somepath", false, default, default, default, default, default, default, default, default, default))

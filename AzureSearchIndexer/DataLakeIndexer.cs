@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using Azure.Search.Documents;
@@ -8,54 +8,68 @@ using Microsoft.Extensions.Logging;
 
 namespace AzureSearchIndexer;
 
-public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer> logger)
+public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer> logger, DatalakeIndexerOptions options)
 {
-    private const int MaxReadThreads = 128;
-    private const int MaxUploadThreads = 4; // this should possibly be set to the number of search units? have to check
-    private const int DocumentBatchSize = 1000;    // according to documentation this is the max batch size... although it seems to work with higher values... they dont bring performance benefits though
+    private readonly BatchingUploader batchingUploader = new BatchingUploader(logger, options.MaxUploadThreads, options.DocumentBatchSize, options.MaxDocumentBatchSizeBytes);
 
 
     /// <summary>
     /// Run document indexer with a function for mapping 
     /// </summary>
-    public async Task<IndexerRunMetrics> RunDocumentIndexerOnPathsAsync<TIndex>(DataLakeServiceClient dataLakeServiceClient, IAsyncEnumerable<PathIndexModel> paths, Func<PathIndexModel, FileDownloadInfo, Task<TIndex?>> func, CancellationToken cancellationToken)
+    public async Task<IndexerRunMetrics> RunDocumentIndexerOnPathsAsync<TIndex>(
+        DataLakeServiceClient dataLakeServiceClient,
+        IAsyncEnumerable<PathIndexModel> paths,
+        Func<PathIndexModel, FileDownloadInfo, Task<TIndex?>> func,
+        CancellationToken cancellationToken)
     {
-        var pathsBuffer = new BlockingCollection<PathIndexModel>(DocumentBatchSize * MaxUploadThreads * 2);
+        var pathsBuffer = new BlockingCollection<PathIndexModel>(options.DocumentBatchSize * options.MaxUploadThreads * 2);
+        var documents = new BlockingCollection<TIndex>(options.DocumentBatchSize * (options.MaxUploadThreads + 2));
 
-        var listPathsTask = Task.Run(async () =>
-        {
-            await foreach (var path in paths)
-            {
-                pathsBuffer.Add(path);
-            }
-
-            pathsBuffer.CompleteAdding();
-        }, cancellationToken);
-
-
-        var documents = new BlockingCollection<TIndex>(DocumentBatchSize * (MaxUploadThreads + 2));
-
-        var documentReadCount = 0;
-        var documentReadFailedCount = 0;
-
-        var documentUploadCount = 0;
-        var documentUploadFailedCount = 0;
-        var documentUploadCreatedCount = 0;
-        var documentUploadModifiedCount = 0;
-
+        var listPathsTask = ReadPathsAsync(paths, pathsBuffer, cancellationToken);
+        var readDocumentsTask = ReadDocumentsAsync(options, dataLakeServiceClient, func, pathsBuffer, documents, cancellationToken);
+        var uploadDocumentsTask = batchingUploader.UploadBatchesAsync(documents, searchClient, cancellationToken);
 
         var stopwatch = Stopwatch.StartNew();
 
-        var readDocumentsTask = Task.Run(async () =>
+        await Task.WhenAll(listPathsTask, readDocumentsTask, uploadDocumentsTask).ConfigureAwait(false);
+
+        logger.LogInformation("Indexing done, took {elapsed}", stopwatch.Elapsed);
+
+        return new IndexerRunMetrics
         {
-            await using var timer = new Timer(s => { logger.LogInformation("Read {documentsReadCount} documents... {dps} fps", documentReadCount, documentReadCount / (stopwatch.ElapsedMilliseconds / 1000f)); }, null, 3000, 3000);
+            ReadCount = readDocumentsTask.Result.ReadCount,
+            ReadFailedCount = readDocumentsTask.Result.ReadFailedCount,
+            ProcessedCount = uploadDocumentsTask.Result.FailedCount,
+            UploadCreatedCount = uploadDocumentsTask.Result.CreatedCount,
+            UploadFailedCount = uploadDocumentsTask.Result.FailedCount,
+            UploadFailedTooLargeCount = uploadDocumentsTask.Result.FailedTooLargeCount,
+            UploadModifiedCount = uploadDocumentsTask.Result.ModifiedCount,
+        };
+    }
 
+
+    /// <summary>
+    /// Read documents from datalake into buffer
+    /// </summary>   
+    internal Task<ReadDocumentsMetrics> ReadDocumentsAsync<TIndex>(
+        DatalakeIndexerOptions options,
+        DataLakeServiceClient dataLakeServiceClient,
+        Func<PathIndexModel, FileDownloadInfo, Task<TIndex?>> func,
+        BlockingCollection<PathIndexModel> pathsBuffer,
+        BlockingCollection<TIndex> documents,
+        CancellationToken cancellationToken) => Task.Run(async () =>
+        {
+            var documentReadCount = 0;
+            var documentReadFailedCount = 0;
             var readTasks = new ConcurrentDictionary<Guid, Task>();
+            var stopwatch = Stopwatch.StartNew();
 
-            using var semaphore = new SemaphoreSlim(MaxReadThreads, MaxReadThreads);
+            await using var timer = new Timer(s => { logger.LogInformation("Read {documentsReadCount} documents... {dps} fps", documentReadCount, documentReadCount / (stopwatch.ElapsedMilliseconds / 1000f)); }, null, 3000, 3000);
 
             try
             {
+                using var semaphore = new SemaphoreSlim(options.MaxReadThreads, options.MaxReadThreads);
+
                 while (pathsBuffer.TryTake(out var path, Timeout.Infinite, cancellationToken))
                 {
                     await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -99,74 +113,26 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
             {
                 documents.CompleteAdding();
             }
+
+            return new ReadDocumentsMetrics
+            {
+                ReadCount = documentReadCount,
+                ReadFailedCount = documentReadFailedCount,
+            };
         }, cancellationToken);
 
-        var uploadDocumentsTask = Task.Run(async () =>
+
+    /// <summary>
+    /// Fill BlockingCollection with paths
+    /// </summary>   
+    internal static Task ReadPathsAsync(IAsyncEnumerable<PathIndexModel> paths, BlockingCollection<PathIndexModel> pathsBuffer, CancellationToken cancellationToken) =>
+        Task.Run(async () =>
         {
-            await using var timer = new Timer(s => { logger.LogInformation("Uploaded documents: created: {created}, modified: {modified}, failed: {failed}", documentUploadCreatedCount, documentUploadModifiedCount, documentUploadFailedCount); }, null, 3000, 3000);
-            using var semaphore = new SemaphoreSlim(MaxUploadThreads, MaxUploadThreads);
-
-            Task UploadBatchAsync(IReadOnlyCollection<TIndex> batch) => Task.Run(async () =>
+            await foreach (var path in paths)
             {
-                try
-                {
-                    await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-
-                    var currentCount = Interlocked.Add(ref documentUploadCount, batch.Count);
-                    logger.LogInformation("Sending batch with {bufferCount} documents, total: {currentCount}", batch.Count, currentCount);
-
-                    // todo handle retries? failed documents?
-                    var response = await searchClient.UploadDocumentsAsync(batch, cancellationToken: cancellationToken).ConfigureAwait(false);
-
-                    Interlocked.Add(ref documentUploadCreatedCount, response.Value.Results.Count(o => o.Status == 201));
-                    Interlocked.Add(ref documentUploadModifiedCount, response.Value.Results.Count(o => o.Status == 200));
-                    Interlocked.Add(ref documentUploadFailedCount, response.Value.Results.Count(o => o.Status >= 400));
-
-                    logger.LogInformation("Status: {status} for batch at {currentCount}", response.GetRawResponse().Status, currentCount);
-                }
-                catch (Exception ex)
-                {
-                    Interlocked.Add(ref documentUploadFailedCount, batch.Count);
-                    logger.LogError(ex, $"Uh oh, sending batch failed...");
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            });
-
-            var sendTasks = new ConcurrentBag<Task>();
-            var buffer = new List<TIndex>(DocumentBatchSize);
-
-            while (!documents.IsCompleted)
-            {
-                if (documents.TryTake(out var document, -1))
-                {
-                    buffer.Add(document);
-                }
-
-                if (buffer.Count == DocumentBatchSize || (documents.IsCompleted && buffer.Count > 0))   // actually this should also check the size of the batch, it should be max 1000 items or 16 MB
-                {
-                    sendTasks.Add(UploadBatchAsync(buffer.AsReadOnly()));
-                    buffer = new List<TIndex>(DocumentBatchSize);
-                }
+                pathsBuffer.Add(path);
             }
 
-            await Task.WhenAll(sendTasks).ConfigureAwait(false);
+            pathsBuffer.CompleteAdding();
         }, cancellationToken);
-
-
-        await Task.WhenAll(readDocumentsTask, uploadDocumentsTask).ConfigureAwait(false);
-        logger.LogInformation("Indexing done, took {elapsed}", stopwatch.Elapsed);
-
-        return new IndexerRunMetrics
-        {
-            DocumentReadCount = documentReadCount,
-            DocumentReadFailedCount = documentReadFailedCount,
-            DocumentUploadCount = documentUploadCount,
-            DocumentUploadCreatedCount = documentUploadCreatedCount,
-            DocumentUploadFailedCount = documentUploadFailedCount,
-            DocumentUploadModifiedCount = documentUploadModifiedCount,
-        };
-    }
 }
