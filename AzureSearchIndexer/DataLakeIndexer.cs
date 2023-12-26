@@ -24,11 +24,11 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
         CancellationToken cancellationToken)
     {
         var pathsChannel = Channel.CreateBounded<PathIndexModel>(options.DocumentBatchSize * options.MaxUploadThreads * 2);
-        var documents = new BlockingCollection<TIndex>(options.DocumentBatchSize * (options.MaxUploadThreads + 2));
+        var documents = Channel.CreateBounded<TIndex>(options.DocumentBatchSize * (options.MaxUploadThreads + 2));
 
         var listPathsTask = ReadPathsAsync(paths, pathsChannel, cancellationToken);
         var readDocumentsTask = ReadDocumentsAsync(options, dataLakeServiceClient, func, pathsChannel, documents, cancellationToken);
-        var uploadDocumentsTask = batchingUploader.UploadBatchesAsync(documents, searchClient, cancellationToken);
+        var uploadDocumentsTask = batchingUploader.UploadBatchesAsync(documents.Reader, searchClient, cancellationToken);
 
         var stopwatch = Stopwatch.StartNew();
 
@@ -56,8 +56,8 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
         DatalakeIndexerOptions options,
         DataLakeServiceClient dataLakeServiceClient,
         Func<PathIndexModel, FileDownloadInfo, Task<TIndex?>> func,
-        ChannelReader<PathIndexModel> pathsBuffer,
-        BlockingCollection<TIndex> documents,
+        ChannelReader<PathIndexModel> paths,
+        ChannelWriter<TIndex> documents,
         CancellationToken cancellationToken) => Task.Run(async () =>
         {
             var documentReadCount = 0;
@@ -71,9 +71,9 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
             {
                 using var semaphore = new SemaphoreSlim(options.MaxReadThreads, options.MaxReadThreads);
 
-                while (await pathsBuffer.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+                while (await paths.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
                 {
-                    if (pathsBuffer.TryRead(out var path))
+                    if (paths.TryRead(out var path))
                     {
                         await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 
@@ -87,7 +87,9 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
                                 var document = await func.Invoke(path, file.Value).ConfigureAwait(false);
                                 if (document != null)
                                 {
-                                    documents.Add(document);
+                                    // todo sus...
+                                    await documents.WaitToWriteAsync(cancellationToken).ConfigureAwait(false);
+                                    await documents.WriteAsync(document).ConfigureAwait(false);
                                     Interlocked.Increment(ref documentReadCount);
                                 }
                             }
@@ -115,7 +117,7 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
             }
             finally
             {
-                documents.CompleteAdding();
+                documents.Complete();
             }
 
             return new ReadDocumentsMetrics
