@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+using System.Threading.Channels;
 using Azure.Search.Documents;
 using AzureSearchIndexer;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -14,22 +14,19 @@ public class BatchingUploaderTests
         var searchClient = Substitute.For<SearchClient>();
         var uploader = new BatchingUploader(NullLogger<BatchingUploader>.Instance, 2, 2);
 
-        var documents = new BlockingCollection<PathIndexModel>
-        {
-            Substitute.For<PathIndexModel>(),
-            Substitute.For<PathIndexModel>(),
-            Substitute.For<PathIndexModel>(),
-        };
+        var documents = Channel.CreateUnbounded<PathIndexModel>();
+        await documents.Writer.WriteAsync(Substitute.For<PathIndexModel>());
+        await documents.Writer.WriteAsync(Substitute.For<PathIndexModel>());
+        await documents.Writer.WriteAsync(Substitute.For<PathIndexModel>());
+        documents.Writer.Complete();
 
-        documents.CompleteAdding();
-
-        var uploadTask = uploader.UploadBatchesAsync(documents, searchClient);
+        var uploadTask = uploader.UploadBatchesAsync(documents.Reader, searchClient);
         await uploadTask;
 
         Assert.Multiple(() =>
         {
             searchClient.ReceivedWithAnyArgs(2).MergeOrUploadDocumentsAsync(Arg.Any<IEnumerable<PathIndexModel>>());
-            Assert.That(documents, Is.Empty);
+            Assert.That(documents.Reader, Is.Empty);
             Assert.That(uploadTask.Result.ProcessedCount, Is.EqualTo(3));
         });
     }
@@ -40,23 +37,20 @@ public class BatchingUploaderTests
         var searchClient = Substitute.For<SearchClient>();
         var uploader = new BatchingUploader(NullLogger<BatchingUploader>.Instance, 2, 2);
 
-        var documents = new BlockingCollection<PathIndexModel>
-        {
-            Substitute.For<PathIndexModel>(),
-            Substitute.For<PathIndexModel>(),
-            Substitute.For<PathIndexModel>(),
-            Substitute.For<PathIndexModel>(),
-        };
+        var documents = Channel.CreateUnbounded<PathIndexModel>();
+        await documents.Writer.WriteAsync(Substitute.For<PathIndexModel>());
+        await documents.Writer.WriteAsync(Substitute.For<PathIndexModel>());
+        await documents.Writer.WriteAsync(Substitute.For<PathIndexModel>());
+        await documents.Writer.WriteAsync(Substitute.For<PathIndexModel>());
+        documents.Writer.Complete();
 
-        documents.CompleteAdding();
-
-        var uploadTask = uploader.UploadBatchesAsync(documents, searchClient);
+        var uploadTask = uploader.UploadBatchesAsync(documents.Reader, searchClient);
         await uploadTask;
 
         Assert.Multiple(() =>
         {
             searchClient.ReceivedWithAnyArgs(2).MergeOrUploadDocumentsAsync(Arg.Any<IEnumerable<PathIndexModel>>());
-            Assert.That(documents, Is.Empty);
+            Assert.That(documents.Reader, Is.Empty);
             Assert.That(uploadTask.Result.ProcessedCount, Is.EqualTo(4));
         });
     }
@@ -67,20 +61,17 @@ public class BatchingUploaderTests
         var searchClient = Substitute.For<SearchClient>();
         var uploader = new BatchingUploader(NullLogger<BatchingUploader>.Instance, 2, 2);
 
-        var documents = new BlockingCollection<PathIndexModel>
-        {
-            Substitute.For<PathIndexModel>(),
-        };
+        var documents = Channel.CreateUnbounded<PathIndexModel>();
+        await documents.Writer.WriteAsync(Substitute.For<PathIndexModel>());
+        documents.Writer.Complete();
 
-        documents.CompleteAdding();
-
-        var uploadTask = uploader.UploadBatchesAsync(documents, searchClient);
+        var uploadTask = uploader.UploadBatchesAsync(documents.Reader, searchClient);
         await uploadTask;
 
         Assert.Multiple(() =>
         {
             searchClient.ReceivedWithAnyArgs(1).MergeOrUploadDocumentsAsync(Arg.Any<IEnumerable<PathIndexModel>>());
-            Assert.That(documents, Is.Empty);
+            Assert.That(documents.Reader, Is.Empty);
             Assert.That(uploadTask.Result.ProcessedCount, Is.EqualTo(1));
         });
     }
@@ -92,23 +83,20 @@ public class BatchingUploaderTests
         var fakeSize = await Utils.GetJsonLengthAsync(Substitute.For<PathIndexModel>()).ConfigureAwait(false) + 1;
         var uploader = new BatchingUploader(NullLogger<BatchingUploader>.Instance, 2, 2, fakeSize);
 
-        var documents = new BlockingCollection<PathIndexModel>
-        {
-            Substitute.For<PathIndexModel>(),
-            Substitute.For<PathIndexModel>(),
-            Substitute.For<PathIndexModel>(),
-            Substitute.For<PathIndexModel>(),
-        };
+        var documents = Channel.CreateUnbounded<PathIndexModel>();
+        await documents.Writer.WriteAsync(Substitute.For<PathIndexModel>());
+        await documents.Writer.WriteAsync(Substitute.For<PathIndexModel>());
+        await documents.Writer.WriteAsync(Substitute.For<PathIndexModel>());
+        await documents.Writer.WriteAsync(Substitute.For<PathIndexModel>());
+        documents.Writer.Complete();
 
-        documents.CompleteAdding();
-
-        var uploadTask = uploader.UploadBatchesAsync(documents, searchClient);
+        var uploadTask = uploader.UploadBatchesAsync(documents.Reader, searchClient);
         await uploadTask;
 
         Assert.Multiple(() =>
         {
             searchClient.ReceivedWithAnyArgs(4).MergeOrUploadDocumentsAsync(Arg.Any<IEnumerable<PathIndexModel>>());
-            Assert.That(documents, Is.Empty);
+            Assert.That(documents.Reader, Is.Empty);
             Assert.That(uploadTask.Result.ProcessedCount, Is.EqualTo(4));
         });
     }
