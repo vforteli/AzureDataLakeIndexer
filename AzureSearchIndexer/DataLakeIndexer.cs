@@ -63,6 +63,7 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
             var documentReadCount = 0;
             var documentReadFailedCount = 0;
             var readTasks = new ConcurrentDictionary<Guid, Task>();
+            var fileSystemClients = new ConcurrentDictionary<string, DataLakeFileSystemClient>();   // cache filesystemclients, they cause quite a lot of allocations when created...
             var stopwatch = Stopwatch.StartNew();
 
             await using var timer = new Timer(s => { logger.LogInformation("Read {documentsReadCount} documents... {dps} fps", documentReadCount, documentReadCount / (stopwatch.ElapsedMilliseconds / 1000f)); }, null, 3000, 3000);
@@ -73,7 +74,7 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
 
                 while (await paths.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
                 {
-                    if (paths.TryRead(out var path))
+                    while (paths.TryRead(out var path))
                     {
                         await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 
@@ -82,7 +83,8 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
                         {
                             try
                             {
-                                var file = await dataLakeServiceClient.GetFileSystemClient(path.filesystem).GetFileClient(WebUtility.UrlDecode(path.pathUrlEncoded)).ReadAsync(cancellationToken).ConfigureAwait(false);
+                                var fileSystemClient = fileSystemClients.GetOrAdd(path.filesystem, (v) => dataLakeServiceClient.GetFileSystemClient(v));
+                                var file = await fileSystemClient.GetFileClient(WebUtility.UrlDecode(path.pathUrlEncoded)).ReadAsync(cancellationToken).ConfigureAwait(false);
 
                                 var document = await func.Invoke(path, file.Value).ConfigureAwait(false);
                                 if (document != null)

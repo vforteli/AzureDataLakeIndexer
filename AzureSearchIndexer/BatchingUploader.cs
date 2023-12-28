@@ -66,7 +66,7 @@ public record BatchingUploader(ILogger logger, int maxUploadThreads, int maxBatc
         {
             var hasMore = await documents.WaitToReadAsync(cancellationToken).ConfigureAwait(false);
 
-            if (documents.TryRead(out var document) && document != null)  // todo dahek, why would document be null here? 
+            if (documents.TryRead(out var document) && document != null)
             {
                 var currentDocumentSizeBytes = await Utils.GetJsonLengthAsync(document, token: cancellationToken).ConfigureAwait(false);
 
@@ -91,7 +91,6 @@ public record BatchingUploader(ILogger logger, int maxUploadThreads, int maxBatc
                 await CreateBatchAsync().ConfigureAwait(false);
             }
 
-            // todo uh.. 
             if (buffer.Count == 0 && !hasMore)
             {
                 break;

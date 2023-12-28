@@ -50,7 +50,7 @@ public static class Utils
     public static async Task<long> GetJsonLengthAsync(object thing, JsonSerializerOptions? options = default, CancellationToken token = default)
     {
         var stream = new CountingStream();
-        await JsonSerializer.SerializeAsync(stream, thing, options, token);
+        await JsonSerializer.SerializeAsync(stream, thing, options, token).ConfigureAwait(false);
         return stream.Length;
     }
 }
