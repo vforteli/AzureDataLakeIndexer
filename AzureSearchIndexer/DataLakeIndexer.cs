@@ -133,15 +133,25 @@ public class DataLakeIndexer(SearchClient searchClient, ILogger<DataLakeIndexer>
     /// <summary>
     /// Fill Channel with paths
     /// </summary>   
-    internal static Task ReadPathsAsync(IAsyncEnumerable<PathIndexModel> paths, ChannelWriter<PathIndexModel> pathsBuffer, CancellationToken cancellationToken) =>
+    internal Task ReadPathsAsync(IAsyncEnumerable<PathIndexModel> paths, ChannelWriter<PathIndexModel> pathsBuffer, CancellationToken cancellationToken) =>
         Task.Run(async () =>
         {
-            await foreach (var path in paths)
+            try
             {
-                await pathsBuffer.WaitToWriteAsync().ConfigureAwait(false);
-                await pathsBuffer.WriteAsync(path).ConfigureAwait(false);
+                await foreach (var path in paths)
+                {
+                    await pathsBuffer.WaitToWriteAsync().ConfigureAwait(false);
+                    await pathsBuffer.WriteAsync(path).ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Listing paths failed?!");
+            }
+            finally
+            {
+                pathsBuffer.Complete();
             }
 
-            pathsBuffer.Complete();
         }, cancellationToken);
 }
