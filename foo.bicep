@@ -224,6 +224,7 @@ resource storageBlobDataContributor 'Microsoft.Authorization/roleDefinitions@202
 
 resource funcSearchDataContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, datalakeIndexerFuncName, 'azuresearchdatacontributor')
+  scope: search
   properties: {
     principalType: 'ServicePrincipal'
     principalId: datalakeIndexerFunc.identity.principalId
